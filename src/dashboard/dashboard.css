@@ -1,0 +1,244 @@
+/* AIM4Active admin dashboard — scoped to .a4a so it cannot leak into the
+   existing Fitbit UI styles in App.css / index.css. Light mode only, matching
+   the rest of the app. */
+
+.a4a {
+  --surface: #fcfcfb;
+  --plane: #f4f3f0;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --hairline: rgba(11, 11, 11, 0.1);
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --accent: #2a78d6;
+
+  color-scheme: light;
+  background: var(--plane);
+  color: var(--ink);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 208px 1fr;
+  align-items: start;
+}
+
+.a4a *,
+.a4a *::before,
+.a4a *::after { box-sizing: border-box; }
+
+/* ---------------------------------------------------------------- nav */
+.a4a-nav {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background: var(--raised);
+  border-right: 1px solid var(--hairline);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.a4a-brand { padding: 0 10px 18px; }
+.a4a-brand b { display: block; font-size: 15px; letter-spacing: -0.01em; }
+.a4a-brand span { display: block; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+
+.a4a-nav button {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.a4a-nav button:hover { background: var(--plane); color: var(--ink); }
+.a4a-nav button[aria-current="page"] { background: #e9f1fc; color: var(--accent); font-weight: 600; }
+.a4a-nav button small { color: var(--ink-3); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+.a4a-nav-foot { margin-top: auto; padding: 12px 10px 0; font-size: 11px; color: var(--ink-3); border-top: 1px solid var(--hairline); }
+
+/* ---------------------------------------------------------------- main */
+.a4a-main { padding: 24px 28px 64px; min-width: 0; }
+.a4a-head { margin-bottom: 18px; }
+.a4a-head h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -0.02em; }
+.a4a-head p { margin: 0; color: var(--ink-2); max-width: 76ch; }
+
+/* one filter row above everything it scopes */
+.a4a-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  margin-bottom: 18px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.a4a-filters input[type="search"],
+.a4a-filters select,
+.a4a-filters input[type="date"] {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--axis);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  max-width: 100%;
+}
+.a4a-filters input[type="search"] { flex: 1 1 240px; min-width: 180px; }
+.a4a-filters label { font-size: 11px; color: var(--ink-3); display: flex; flex-direction: column; gap: 3px; }
+.a4a-reset {
+  appearance: none; border: 1px solid var(--axis); background: var(--surface);
+  font: inherit; font-size: 12px; padding: 6px 10px; border-radius: 6px; cursor: pointer; color: var(--ink-2);
+}
+.a4a-reset:hover { background: var(--plane); }
+.a4a-scope { font-size: 12px; color: var(--ink-3); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- cards */
+.a4a-grid { display: grid; gap: 14px; }
+.a4a-grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+.a4a-grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.a4a-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+
+.a4a-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+  min-width: 0;
+}
+.a4a-card > header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+.a4a-card h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+.a4a-card header p { margin: 0; font-size: 11px; color: var(--ink-3); }
+.a4a-card-actions { margin-left: auto; display: flex; gap: 6px; }
+.a4a-toggle {
+  appearance: none; border: 1px solid var(--axis); background: var(--surface); color: var(--ink-3);
+  font: inherit; font-size: 11px; padding: 3px 7px; border-radius: 5px; cursor: pointer;
+}
+.a4a-toggle[aria-pressed="true"] { background: #e9f1fc; border-color: var(--accent); color: var(--accent); }
+
+/* stat tile — the number is the chart */
+.a4a-tile { background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px; padding: 12px 14px; }
+.a4a-tile dt { font-size: 11px; color: var(--ink-3); margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.a4a-tile dd { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.a4a-tile small { display: block; font-size: 11px; color: var(--ink-3); margin-top: 3px; font-weight: 400; }
+
+/* ---------------------------------------------------------------- tables */
+.a4a-table-wrap { overflow-x: auto; }
+.a4a-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.a4a-table th {
+  text-align: left; font-weight: 600; font-size: 11px; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 7px 10px; border-bottom: 1px solid var(--axis); white-space: nowrap;
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.a4a-table th.sortable { cursor: pointer; user-select: none; }
+.a4a-table th.sortable:hover { color: var(--ink); }
+.a4a-table td { padding: 7px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+.a4a-table tbody tr:hover { background: #f7f9fc; }
+.a4a-table tbody tr.selected { background: #e9f1fc; }
+.a4a-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.a4a-table .msg { max-width: 460px; }
+.a4a-row-click { cursor: pointer; }
+
+/* ---------------------------------------------------------------- bits */
+.a4a-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 2px 7px; border-radius: 20px;
+  background: var(--plane); color: var(--ink-2); white-space: nowrap;
+}
+.a4a-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.a4a-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; white-space: nowrap; }
+.a4a-status b { font-weight: 600; }
+.a4a-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+
+.a4a-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 12px; font-size: 11.5px; color: var(--ink-2); }
+.a4a-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.a4a-empty { padding: 28px; text-align: center; color: var(--ink-3); font-size: 13px; }
+
+.a4a-note {
+  font-size: 12px; color: var(--ink-2); background: #fff8e6;
+  border: 1px solid #f2e2b8; border-left: 3px solid var(--warning);
+  padding: 9px 12px; border-radius: 6px; margin-bottom: 14px;
+}
+.a4a-note b { color: var(--ink); }
+
+.a4a-source-real { color: var(--good); }
+.a4a-source-mock { color: var(--warning); }
+
+/* drill-down panel */
+.a4a-detail { position: sticky; top: 64px; max-height: calc(100vh - 90px); overflow-y: auto; }
+.a4a-detail dl { display: grid; grid-template-columns: minmax(90px, auto) 1fr; gap: 6px 12px; margin: 0 0 14px; font-size: 12.5px; }
+.a4a-detail dt { color: var(--ink-3); }
+.a4a-detail dd { margin: 0; }
+.a4a-quote {
+  font-size: 14px; line-height: 1.5; padding: 12px 14px; background: var(--plane);
+  border-radius: 6px; border-left: 3px solid var(--axis); margin: 0 0 14px;
+}
+
+.a4a-gate { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--grid); font-size: 12.5px; }
+.a4a-gate:last-child { border-bottom: 0; }
+.a4a-gate-name { flex: none; width: 116px; font-weight: 500; }
+.a4a-gate-reason { color: var(--ink-2); min-width: 0; }
+
+.a4a-pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--ink-2); }
+.a4a-pager button {
+  appearance: none; border: 1px solid var(--axis); background: var(--surface); color: var(--ink-2);
+  font: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+}
+.a4a-pager button:disabled { opacity: 0.4; cursor: default; }
+.a4a-pager button:not(:disabled):hover { background: var(--plane); }
+
+/* charts */
+.a4a-chart { display: block; width: 100%; overflow: visible; }
+.a4a-chart text { fill: var(--ink-3); font-size: 10.5px; }
+.a4a-chart .lbl { fill: var(--ink-2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.a4a-chart .grid-line { stroke: var(--grid); stroke-width: 1; }
+.a4a-chart .axis-line { stroke: var(--axis); stroke-width: 1; }
+.a4a-hit { fill: transparent; cursor: pointer; }
+.a4a-hit:hover + .a4a-mark, .a4a-mark.hot { opacity: 0.82; }
+
+.a4a-tip {
+  position: fixed; z-index: 60; pointer-events: none;
+  background: #16161a; color: #fff; font-size: 11.5px; line-height: 1.45;
+  padding: 7px 9px; border-radius: 6px; max-width: 280px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.a4a-tip b { font-weight: 600; }
+.a4a-tip .k { color: #b9b8b2; }
+
+/* matrix */
+.a4a-matrix { border-collapse: separate; border-spacing: 2px; font-size: 12px; }
+.a4a-matrix th { font-weight: 500; font-size: 11px; color: var(--ink-2); padding: 4px 6px; background: none; border: 0; position: static; text-transform: none; letter-spacing: 0; }
+.a4a-matrix th.rowhead { text-align: left; white-space: nowrap; padding-right: 10px; }
+.a4a-matrix th.colhead { writing-mode: vertical-rl; transform: rotate(180deg); height: 92px; vertical-align: bottom; }
+.a4a-matrix td { padding: 0; border: 0; }
+.a4a-cell {
+  width: 100%; min-width: 34px; height: 30px; border: 0; border-radius: 3px;
+  font: inherit; font-size: 11px; font-variant-numeric: tabular-nums;
+  cursor: pointer; color: var(--ink); display: block;
+}
+.a4a-cell:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+.a4a-cell.zero { color: var(--ink-3); }
+
+@media (max-width: 860px) {
+  .a4a { grid-template-columns: 1fr; }
+  .a4a-nav { position: static; height: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--hairline); }
+  .a4a-brand, .a4a-nav-foot { display: none; }
+  .a4a-main { padding: 16px; }
+}
