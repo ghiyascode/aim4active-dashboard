@@ -150,7 +150,6 @@ export default function RawData({ filtered }) {
       <ChartCard
         title="Flat message table"
         subtitle="Every filter above applies. Click a header to sort; export what you see."
-        source="real"
         actions={
           <>
             {Object.entries(PRESETS).map(([k, p]) => (

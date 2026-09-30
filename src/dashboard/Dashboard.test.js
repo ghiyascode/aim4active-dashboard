@@ -44,7 +44,26 @@ describeIf("admin dashboard", () => {
   test("loads the snapshot and reports the real total", async () => {
     await renderReady();
     const total = snapshot.db.messages.length + snapshot.agentic.candidates.length;
-    expect(screen.getByText(new RegExp(`${total.toLocaleString()} messages`))).toBeInTheDocument();
+    expect(screen.getAllByText(new RegExp(`${total.toLocaleString()} messages`)).length).toBeGreaterThan(0);
+  }, 40000);
+
+  // Verdicts used to be counted from folder-based runs only, so a database that
+  // records its own verdicts reported zero accepted.
+  test("overview counts verdicts from whichever source recorded them", async () => {
+    const dbAccepted = snapshot.db.messages.filter((m) => m.status === "accepted").length;
+    const agAccepted = snapshot.agentic.candidates.filter((c) => c.status === "accepted").length;
+    const expected = dbAccepted + agAccepted;
+    if (!expected) return;
+
+    await renderReady();
+    // read the figure out of the Accepted tile specifically
+    await waitFor(() => {
+      const tile = [...document.querySelectorAll(".a4a-tile")].find(
+        (t) => t.querySelector("dt")?.textContent.trim() === "Accepted"
+      );
+      expect(tile).toBeTruthy();
+      expect(tile.querySelector("dd").textContent.trim()).toBe(expected.toLocaleString());
+    });
   }, 40000);
 
   test("every view renders without crashing", async () => {
@@ -217,7 +236,56 @@ describeIf("admin dashboard", () => {
   test("matrix renders a cell grid", async () => {
     await renderReady();
     gotoView("Matrix");
-    await waitFor(() => expect(screen.getByText(/Darker means more messages/)).toBeInTheDocument());
-    expect(document.querySelectorAll(".a4a-cell").length).toBeGreaterThan(0);
+    await waitFor(() => expect(document.querySelectorAll(".a4a-cell").length).toBeGreaterThan(0));
+  }, 40000);
+
+  // Every column dimension must produce a grid, not just the default one.
+  test("matrix supports every column dimension", async () => {
+    await renderReady();
+    gotoView("Matrix");
+    const select = screen.getByLabelText(/Columns/);
+
+    for (const value of ["run", "gate", "prompt", "writer", "participant"]) {
+      fireEvent.change(select, { target: { value } });
+      await waitFor(() => {
+        const cells = document.querySelectorAll(".a4a-cell").length;
+        const empty = screen.queryByText(/Nothing to show for this combination/);
+        // either it drew a grid, or it said plainly that there is nothing to draw
+        expect(cells > 0 || empty !== null).toBe(true);
+      });
+    }
+  }, 60000);
+
+  // "Which messages didn't pass which check" is the gate cut of the matrix.
+  test("matrix by failed check reflects the gates in the data", async () => {
+    const gates = new Set();
+    for (const m of snapshot.db.messages) for (const g of m.failedGates || []) gates.add(g);
+    if (!gates.size) return;
+
+    await renderReady();
+    gotoView("Matrix");
+    fireEvent.change(screen.getByLabelText(/Columns/), { target: { value: "gate" } });
+
+    await waitFor(() => expect(document.querySelectorAll(".a4a-cell").length).toBeGreaterThan(0));
+    const page = document.body.textContent.toLowerCase();
+    for (const g of gates) expect(page).toContain(g.replace(/_/g, " ").toLowerCase());
+  }, 40000);
+
+  // Quality must never present judge scores as if they covered every message.
+  test("quality panel reports judge coverage honestly", async () => {
+    await renderReady();
+    gotoView("Pipeline");
+    await waitFor(() => expect(screen.getByText("Message quality")).toBeInTheDocument());
+
+    const judged = snapshot.db.messages.filter(
+      (m) => (m.rejections || []).length === 0 && m.deliveredId != null
+    ).length;
+    // each signal is reported with its own coverage, never as a bare average
+    for (const signal of ["Judge score", "Sentiment", "Reading ease"]) {
+      expect(screen.getAllByText(signal).length).toBeGreaterThan(0);
+    }
+    // the tiles state how many messages each average is based on
+    expect(screen.getByText(/1-5 · .* messages \(/)).toBeInTheDocument();
+    if (judged) expect(screen.getByText(/Quality by technique/)).toBeInTheDocument();
   }, 40000);
 });

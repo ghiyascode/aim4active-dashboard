@@ -37,10 +37,10 @@ export default function Overview({ data, filtered, set, setView }) {
       </div>
 
       <dl className="a4a-tiles">
-        <StatTile label="Messages generated" value={fmt(s.total)} hint={`${fmt(s.db)} in DB · ${fmt(s.agentic)} agentic`} />
-        <StatTile label="Accepted" value={fmt(s.accepted)} hint="agentic runs only" tone="good" />
-        <StatTile label="Rejected" value={fmt(s.rejected)} hint="with a written reason" tone="critical" />
-        <StatTile label="Acceptance rate" value={s.acceptanceRate == null ? "—" : `${s.acceptanceRate}%`} hint="across filtered runs" />
+        <StatTile label="Messages generated" value={fmt(s.total)} hint={s.agentic ? `${fmt(s.db)} in DB · ${fmt(s.agentic)} from run folders` : "from the database"} />
+        <StatTile label="Accepted" value={fmt(s.accepted)} hint="delivered to a participant" tone="good" />
+        <StatTile label="Rejected" value={fmt(s.rejected)} hint="each with a written reason" tone="critical" />
+        <StatTile label="Acceptance rate" value={s.acceptanceRate == null ? "—" : `${s.acceptanceRate}%`} hint={s.unadjudicated ? `of ${fmt(s.judged)} with a verdict · ${fmt(s.unadjudicated)} without` : `of ${fmt(s.judged)} with a verdict`} />
         <StatTile label="BCTs used" value={fmt(s.bctsUsed)} hint={`${data.bctCatalog.length} targeted by the study`} />
         <StatTile label="Messages sent" value={fmt(s.sends)} hint={`${fmt(s.uniqueSent)} unique${data.participantsAreMock ? " · mock" : ""}`} />
         <StatTile label="Participants reached" value={`${s.usersReached}/${data.users.length}`} hint={`${s.failedSends} failed deliveries${data.participantsAreMock ? " · mock" : ""}`} />
@@ -50,7 +50,6 @@ export default function Overview({ data, filtered, set, setView }) {
         <ChartCard
           title="Messages by behaviour change technique"
           subtitle="Both sources combined. Colour identifies the BCT everywhere in this dashboard."
-          source="real"
           table={<SimpleTable head={["BCT", "Messages"]} rows={byBct.map((b) => [b.label, fmt(b.value)])} />}
         >
           <HBars
@@ -74,24 +73,22 @@ export default function Overview({ data, filtered, set, setView }) {
 
         <ChartCard
           title="Where candidates die"
-          subtitle="Rejections attributed to each critic gate, across the filtered agentic runs."
-          source="real"
+          subtitle="Which check rejected each message, across everything in scope."
           table={<SimpleTable head={["Gate", "Rejections"]} rows={gates.map((g) => [g.label, fmt(g.value)])} />}
         >
           {gates.some((g) => g.value > 0) ? (
             <HBars data={gates} />
           ) : (
-            <div className="a4a-empty">No adjudicated candidates in scope. Clear the batch filter or pick an agentic run.</div>
+            <div className="a4a-empty">Nothing in scope carries a rejection reason.</div>
           )}
         </ChartCard>
 
         <ChartCard
           title="Accepted vs rejected by run"
-          subtitle="Each agentic run's yield. Saturation stops most runs before the target count."
-          source="real"
+          subtitle="How many candidates each run produced, and how many survived review."
           table={<SimpleTable head={["Run", "Accepted", "Rejected", "Rate"]} rows={runRows.map((r) => [r.label, fmt(r.accepted), fmt(r.rejected), `${((r.accepted / (r.accepted + r.rejected)) * 100).toFixed(1)}%`])} />}
         >
-          {runRows.length ? <AcceptRejectBars data={runRows} /> : <div className="a4a-empty">No agentic runs in scope.</div>}
+          {runRows.length ? <AcceptRejectBars data={runRows} /> : <div className="a4a-empty">No runs in scope.</div>}
         </ChartCard>
 
         <ChartCard

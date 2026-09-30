@@ -399,15 +399,21 @@ export function useFiltered(data, filters) {
 // Aggregations
 export function summarize(messages, sends, users) {
   const agentic = messages.filter((m) => m.source === "agentic");
-  const accepted = agentic.filter((m) => m.status === "accepted").length;
-  const rejected = agentic.filter((m) => m.status === "rejected").length;
+  // Verdicts come from whichever source recorded them. The current schema
+  // records them in the database; older folder-based runs recorded them too;
+  // messages with neither stay "generated" and are excluded from the rate.
+  const accepted = messages.filter((m) => m.status === "accepted").length;
+  const rejected = messages.filter((m) => m.status === "rejected").length;
+  const judged = accepted + rejected;
   return {
     total: messages.length,
     db: messages.length - agentic.length,
     agentic: agentic.length,
     accepted,
     rejected,
-    acceptanceRate: agentic.length ? +((accepted / agentic.length) * 100).toFixed(1) : null,
+    judged,
+    unadjudicated: messages.length - judged,
+    acceptanceRate: judged ? +((accepted / judged) * 100).toFixed(1) : null,
     bctsUsed: new Set(messages.map((m) => m.bctUri).filter(Boolean)).size,
     batches: new Set(messages.map((m) => m.batchKey)).size,
     sends: sends.length,
@@ -450,6 +456,57 @@ export function bctUserMatrix(sends, users, bcts) {
   });
   const max = Math.max(1, ...rows.flatMap((r) => r.cells.map((c) => c.count)));
   return { rows, users, max };
+}
+
+/**
+ * BCT rows against any column dimension, measuring either how many messages
+ * fall in each cell or the average of some value across them.
+ *
+ * `columnsOf` may return several keys for one message, which is what lets a
+ * message that failed three gates appear under all three.
+ *
+ * `measure` is "count", or a function returning a number per message; cells
+ * then carry the mean of the messages that actually had a value, and `scored`
+ * records how many those were, because coverage varies a lot by column.
+ */
+export function bctCrossTab(messages, bcts, columnsOf, measure = "count") {
+  const cells = {};
+  const colKeys = new Set();
+
+  for (const m of messages) {
+    if (!m.bctUri) continue;
+    const cols = columnsOf(m);
+    for (const col of Array.isArray(cols) ? cols : [cols]) {
+      if (col == null || col === "") continue;
+      colKeys.add(col);
+      const cell = (cells[`${m.bctUri}|${col}`] ??= { n: 0, sum: 0, scored: 0 });
+      cell.n++;
+      if (measure !== "count") {
+        const v = measure(m);
+        if (v != null && Number.isFinite(v)) {
+          cell.sum += v;
+          cell.scored++;
+        }
+      }
+    }
+  }
+
+  const sorted = [...colKeys].sort();
+  const rows = bcts.map((bct) => ({
+    bct,
+    cells: sorted.map((col) => {
+      const cell = cells[`${bct.uri}|${col}`] ?? { n: 0, sum: 0, scored: 0 };
+      return {
+        col,
+        count: cell.n,
+        scored: cell.scored,
+        value: measure === "count" ? cell.n : cell.scored ? cell.sum / cell.scored : null,
+      };
+    }),
+  }));
+
+  const values = rows.flatMap((r) => r.cells.map((c) => c.value)).filter((v) => v != null);
+  return { rows, colKeys: sorted, max: values.length ? Math.max(...values) : 1 };
 }
 
 /** Generic matrix: BCT rows x an arbitrary DB column (prompt variant / model). */

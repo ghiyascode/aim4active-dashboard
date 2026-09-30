@@ -212,7 +212,6 @@ function Timeline({ user, data, sends, tag, onClose }) {
         <ChartCard
           title="Daily temperature"
           subtitle="Real weather for the same window — plotted separately rather than on a second y-axis."
-          source="real"
           table={<SimpleTable head={["Date", "°F", "Precip in"]} rows={rows.map((r) => [r.date, r.weather?.tempF ?? "—", r.weather?.precipIn ?? "—"])} />}
         >
           <LineChart

@@ -1,61 +1,92 @@
-// BCT rows against a column dimension the reader picks: participant, prompt
-// variant, writer config or run. Cells carry their count as well as a shade, so
-// the value never depends on colour alone.
+// BCT rows against a column dimension the reader picks, measuring either volume
+// or quality. Cells carry their value as well as a shade, so nothing depends on
+// colour alone.
 
 import { useState, useMemo } from "react";
 import { ChartCard, useTooltip, fmt } from "../charts";
-import { bctUserMatrix, bctByColumn } from "../data";
+import { bctUserMatrix, bctCrossTab, gateLabel, SCORE_DIMS } from "../data";
 import { rampColor } from "../palette";
 
-const MODES = [
-  { key: "participant", label: "BCT × participant", source: null, blurb: "Messages routed to each participant, by technique." },
-  { key: "prompt", label: "BCT × prompt variant", source: "real", blurb: "Which prompt template produced messages for each technique." },
-  { key: "writer", label: "BCT × writer config", source: "real", blurb: "Which model + sampling configuration produced each technique." },
-  { key: "run", label: "BCT × agentic run", source: "real", blurb: "Candidate volume per technique in each pipeline run." },
+const COLUMNS = [
+  { key: "run", label: "Run", blurb: "Volume and quality per technique in each pipeline run." },
+  { key: "gate", label: "Failed check", blurb: "Which messages failed which check. A message failing several appears under each." },
+  { key: "prompt", label: "Prompt variant", blurb: "Which prompt template produced messages for each technique." },
+  { key: "writer", label: "Model config", blurb: "Which model and sampling settings produced each technique." },
+  { key: "participant", label: "Participant", blurb: "Messages delivered to each participant, by technique." },
+];
+
+// Mean of the judge dimensions a message was actually scored on.
+function judgeMean(m) {
+  if (!m.scores) return null;
+  const vals = SCORE_DIMS.map((d) => m.scores[d.key]).filter((v) => v != null);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+
+// Coverage differs a lot between these: judge scores exist only for delivered
+// messages, readability for most, sentiment for all. Cells report the sample
+// size behind them so a thin average is never mistaken for a solid one.
+const MEASURES = [
+  { key: "count", label: "Messages", format: (v) => fmt(v), blurb: "how many messages" },
+  { key: "judge", label: "Judge score", format: (v) => v.toFixed(2), blurb: "mean judge score, 1-5", of: judgeMean },
+  { key: "ease", label: "Reading ease", format: (v) => v.toFixed(1), blurb: "mean Flesch reading ease", of: (m) => m.readingEase },
+  { key: "sentiment", label: "Sentiment", format: (v) => v.toFixed(2), blurb: "mean sentiment, -1 to 1", of: (m) => m.sentiment },
 ];
 
 export default function Matrix({ data, filtered, set }) {
-  const [mode, setMode] = useState("participant");
+  const [column, setColumn] = useState("run");
+  const [measure, setMeasure] = useState("count");
   const { show, hide, node } = useTooltip();
-  const active = MODES.find((m) => m.key === mode);
 
-  // Rows are the BCTs the study targets. Without the catalogue nothing is
-  // marked targeted, so fall back to the most-used ones rather than drawing an
-  // empty grid.
+  const col = COLUMNS.find((c) => c.key === column);
+  const meas = MEASURES.find((m) => m.key === measure);
+
+  // Participant cells come from the send log rather than the message table, so
+  // they only support counting.
+  const countOnly = column === "participant";
+  const activeMeasure = countOnly ? MEASURES[0] : meas;
+
   const targeted = useMemo(() => {
     const flagged = data.bcts.filter((b) => b.targeted);
     return flagged.length ? flagged : data.bcts.slice(0, 8);
   }, [data.bcts]);
 
+  const runLabel = useMemo(() => {
+    const byId = {};
+    for (const r of data.runs) byId[r.id] = `${r.devCycle} / ${r.label}`;
+    return byId;
+  }, [data.runs]);
+
   const model = useMemo(() => {
-    if (mode === "participant") {
+    if (column === "participant") {
       const m = bctUserMatrix(filtered.sends, filtered.users, targeted);
       return {
         rows: m.rows.map((r) => ({
           bct: r.bct,
-          cells: r.cells.map((c) => ({ key: c.user.uid, label: c.user.uid, short: c.user.uid, count: c.count, meta: c.user })),
+          cells: r.cells.map((c) => ({ key: c.user.uid, label: c.user.uid, value: c.count, count: c.count, scored: c.count })),
         })),
         cols: m.users.map((u) => ({ key: u.uid, label: u.uid })),
         max: m.max,
-        onCell: (bct, col) => set({ bctUri: bct.uri, uid: col.key }),
+        onCell: (bct, cell) => set({ bctUri: bct.uri, uid: cell.key }),
       };
     }
-    const columnOf =
-      mode === "prompt" ? (m) => m.promptType
-        : mode === "writer" ? (m) => (m.writerId != null ? `w${m.writerId} · ${m.temperature}/${m.topP}` : null)
-        : (m) => (m.source === "agentic" ? m.batchLabel : null);
 
-    const m = bctByColumn(filtered.messages, columnOf, targeted);
+    const columnsOf =
+      column === "prompt" ? (m) => m.promptType
+        : column === "writer" ? (m) => (m.writerId != null ? `w${m.writerId} · ${m.temperature}/${m.topP}` : null)
+        : column === "gate" ? (m) => m.failedGates || []
+        : (m) => (m.runKey ? runLabel[m.runKey] || m.runKey : null);
+
+    const m = bctCrossTab(filtered.messages, targeted, columnsOf, activeMeasure.of ?? "count");
     return {
       rows: m.rows.map((r) => ({
         bct: r.bct,
-        cells: r.cells.map((c) => ({ key: c.col, label: c.col, short: c.col, count: c.count })),
+        cells: r.cells.map((c) => ({ key: c.col, label: c.col, value: c.value, count: c.count, scored: c.scored })),
       })),
-      cols: m.colKeys.map((c) => ({ key: c, label: c })),
+      cols: m.colKeys.map((c) => ({ key: c, label: column === "gate" ? gateLabel(c) : c })),
       max: m.max,
       onCell: (bct) => set({ bctUri: bct.uri }),
     };
-  }, [mode, filtered, targeted, set]);
+  }, [column, filtered, targeted, activeMeasure, runLabel, set]);
 
   const tableTwin = (
     <table className="a4a-table">
@@ -63,46 +94,60 @@ export default function Matrix({ data, filtered, set }) {
         <tr>
           <th>BCT</th>
           {model.cols.map((c) => <th key={c.key} className="num">{c.label}</th>)}
-          <th className="num">Total</th>
         </tr>
       </thead>
       <tbody>
         {model.rows.map((r) => (
           <tr key={r.bct.uri}>
             <td>{r.bct.name}</td>
-            {r.cells.map((c) => <td key={c.key} className="num">{fmt(c.count)}</td>)}
-            <td className="num"><b>{fmt(r.cells.reduce((a, c) => a + c.count, 0))}</b></td>
+            {r.cells.map((c) => (
+              <td key={c.key} className="num">
+                {c.value == null ? "—" : activeMeasure.format(c.value)}
+                {activeMeasure.key !== "count" && c.scored > 0 && (
+                  <span style={{ color: "var(--ink-3)" }}> (n={c.scored})</span>
+                )}
+              </td>
+            ))}
           </tr>
         ))}
       </tbody>
     </table>
   );
 
+  const anyCells = model.cols.length > 0 && model.rows.some((r) => r.cells.some((c) => c.count > 0));
+
   return (
     <>
-      <div className="a4a-filters" style={{ position: "static", marginBottom: 14 }}>
-        {MODES.map((m) => (
-          <button
-            key={m.key}
-            className="a4a-toggle"
-            aria-pressed={mode === m.key}
-            onClick={() => setMode(m.key)}
-            style={{ fontSize: 12, padding: "5px 10px" }}
-          >
-            {m.label}
-          </button>
-        ))}
-        <span className="a4a-scope">{active.blurb}</span>
+      <div className="a4a-filters" style={{ position: "static", marginBottom: 14, gap: 14 }}>
+        <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          Columns
+          <select value={column} onChange={(e) => setColumn(e.target.value)}>
+            {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        </label>
+
+        <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          Showing
+          <select value={measure} onChange={(e) => setMeasure(e.target.value)} disabled={countOnly}>
+            {MEASURES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+        </label>
+
+        <span className="a4a-scope">{col.blurb}</span>
       </div>
 
       <ChartCard
-        title={active.label}
-        subtitle="Darker means more messages. Click a cell to filter the whole dashboard to it."
-        source={active.key === "participant" && data.participantsAreMock ? "mock" : active.source}
+        title={`BCT × ${col.label}`}
+        subtitle={
+          activeMeasure.key === "count"
+            ? "Darker means more messages. Click a cell to filter the dashboard to it."
+            : `Each cell is the ${activeMeasure.blurb} for that combination, with the number of messages behind it.`
+        }
+        source={column === "participant" && data.participantsAreMock ? "mock" : undefined}
         table={tableTwin}
       >
-        {model.cols.length === 0 ? (
-          <div className="a4a-empty">No columns in scope for this cut.</div>
+        {!anyCells ? (
+          <div className="a4a-empty">Nothing to show for this combination in the current scope.</div>
         ) : (
           <div className="a4a-table-wrap">
             <table className="a4a-matrix">
@@ -111,60 +156,80 @@ export default function Matrix({ data, filtered, set }) {
                   <th />
                   {model.cols.map((c) => (
                     <th className="colhead" key={c.key} title={c.label}>
-                      {c.label.length > 16 ? c.label.slice(0, 15) + "…" : c.label}
+                      {c.label.length > 18 ? c.label.slice(0, 17) + "…" : c.label}
                     </th>
                   ))}
-                  <th className="rowhead" style={{ writingMode: "initial" }}>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {model.rows.map((r) => {
-                  const total = r.cells.reduce((a, c) => a + c.count, 0);
-                  return (
-                    <tr key={r.bct.uri}>
-                      <th className="rowhead">
-                        <span className="a4a-status">
-                          <span className="a4a-dot" style={{ background: r.bct.color }} />
-                          {r.bct.name}
-                        </span>
-                      </th>
-                      {r.cells.map((c) => (
-                        <td key={c.key}>
-                          <button
-                            className={`a4a-cell ${c.count ? "" : "zero"}`}
-                            style={{ background: rampColor(c.count / model.max) }}
-                            onClick={() => model.onCell(r.bct, c)}
-                            onMouseMove={(e) =>
-                              show(e, (
-                                <>
-                                  <b>{r.bct.name}</b><br />
-                                  <span className="k">{c.label}</span><br />
-                                  {fmt(c.count)} message{c.count === 1 ? "" : "s"}
-                                  <br /><span className="k">click to filter</span>
-                                </>
-                              ))
-                            }
-                            onMouseLeave={hide}
-                          >
-                            {c.count || ""}
-                          </button>
-                        </td>
-                      ))}
-                      <td style={{ paddingLeft: 8, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmt(total)}</td>
-                    </tr>
-                  );
-                })}
+                {model.rows.map((r) => (
+                  <tr key={r.bct.uri}>
+                    <th className="rowhead">
+                      <span className="a4a-status">
+                        <span className="a4a-dot" style={{ background: r.bct.color }} />
+                        {r.bct.name}
+                      </span>
+                    </th>
+                    {r.cells.map((c) => (
+                      <td key={c.key}>
+                        <button
+                          className={`a4a-cell ${c.value ? "" : "zero"}`}
+                          style={{ background: rampColor(c.value == null ? 0 : c.value / model.max) }}
+                          onClick={() => model.onCell(r.bct, c)}
+                          onMouseMove={(e) =>
+                            show(e, (
+                              <>
+                                <b>{r.bct.name}</b><br />
+                                <span className="k">{c.label}</span><br />
+                                {c.value == null ? (
+                                  <>not scored</>
+                                ) : (
+                                  <>
+                                    <span className="k">{activeMeasure.label.toLowerCase()}</span>{" "}
+                                    {activeMeasure.format(c.value)}
+                                  </>
+                                )}
+                                <br />
+                                <span className="k">messages</span> {fmt(c.count)}
+                                {activeMeasure.key !== "count" && (
+                                  <>
+                                    <br /><span className="k">of those, scored</span> {fmt(c.scored)}
+                                  </>
+                                )}
+                              </>
+                            ))
+                          }
+                          onMouseLeave={hide}
+                        >
+                          {c.value == null ? "" : activeMeasure.format(c.value)}
+                        </button>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
 
         <div className="a4a-legend">
-          <span style={{ color: "var(--ink-3)" }}>0</span>
+          <span style={{ color: "var(--ink-3)" }}>low</span>
           {[0.15, 0.35, 0.55, 0.75, 1].map((t) => (
             <span key={t} style={{ width: 26, height: 12, borderRadius: 3, background: rampColor(t), display: "inline-block" }} />
           ))}
-          <span style={{ color: "var(--ink-3)" }}>{fmt(model.max)} max</span>
+          <span style={{ color: "var(--ink-3)" }}>
+            {activeMeasure.format(model.max)} max
+          </span>
+          {activeMeasure.key === "judge" && (
+            <span style={{ color: "var(--ink-3)" }}>
+              · only delivered messages are judged, so cells are thin
+            </span>
+          )}
+          {activeMeasure.key === "ease" && (
+            <span style={{ color: "var(--ink-3)" }}>
+              · higher is easier to read
+            </span>
+          )}
         </div>
       </ChartCard>
       {node}

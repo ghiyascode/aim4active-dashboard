@@ -48,7 +48,6 @@ export default function Messages({ data, filtered, filters, set }) {
       <ChartCard
         title={`${messages.length.toLocaleString()} messages in scope`}
         subtitle="Click any row for its full evaluation history. Search and filters apply from the bar above."
-        source="real"
         actions={
           filters.q ? (
             <span className="a4a-chip">

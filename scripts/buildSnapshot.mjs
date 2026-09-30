@@ -65,7 +65,24 @@ function defaultDb() {
 const DB_FILE = process.env.A4A_DB || defaultDb();
 
 const round = (n, p = 3) => (n == null ? null : +Number(n).toFixed(p));
+
+// The pipeline writes sentinels rather than nulls when a score could not be
+// computed: -99 for "not captured" and -128 to flag a critique error. Left as
+// numbers they poison every average downstream, so they become null here.
+const SENTINELS = new Set([-99, -128]);
+const score = (n, p = 3) => (n == null || SENTINELS.has(Number(n)) ? null : round(n, p));
 const warn = (m) => console.warn(`  ! ${m}`);
+
+// Judge rows carry the same sentinels; null them so means stay meaningful.
+const JUDGE_FIELDS = [
+  "bctFidelity", "naturalness", "understandable", "clarity", "promotePa", "acceptable", "ai",
+  "bctConf", "naturalConf", "understandConf", "clarityConf", "promoteConf", "acceptableConf", "aiConf",
+];
+function cleanScoreRow(row) {
+  const out = { ...row };
+  for (const f of JUDGE_FIELDS) out[f] = score(out[f], 4);
+  return out;
+}
 
 // Minimal CSV parser. Handles quoted fields containing commas.
 function parseCsv(text) {
@@ -181,9 +198,11 @@ function readCurrentSchema(q, tables) {
       return {
         ...m,
         uid,
-        sentiment: round(m.sentiment, 4),
-        fkGrade: round(m.fkGrade, 2),
-        readingEase: round(m.readingEase, 2),
+        sentiment: score(m.sentiment, 4),
+        fkGrade: score(m.fkGrade, 2),
+        readingEase: score(m.readingEase, 2),
+        words: score(m.words, 0),
+        chars: score(m.chars, 0),
         status: m.deliveredId != null ? "accepted" : rejections.length ? "rejected" : "generated",
         failedGates: rejections.map((r) => r.gate).filter(Boolean),
         rejectedBy: rejections[0]?.gate ?? null,
@@ -200,7 +219,7 @@ function readCurrentSchema(q, tables) {
            s.CLARITY_CONF clarityConf, s.PROMOTE_CONF promoteConf,
            s.ACCEPTABLE_CONF acceptableConf, s.AI_CONF aiConf
     FROM LLM_SCORES s
-    LEFT JOIN LLM_WRITERS l ON l.MODEL_ID = s.MODEL_ID`);
+    LEFT JOIN LLM_WRITERS l ON l.MODEL_ID = s.MODEL_ID`).map(cleanScoreRow);
 
   const bctNames = Object.fromEntries(
     safe(`SELECT URI uri, NAME name, LEVEL level, NULL definition FROM BCTS`).map((b) => [b.uri, b])
@@ -326,9 +345,9 @@ function readDb() {
     LEFT JOIN BASIC_SCORES b ON b.MSG_ID = m.MSG_ID
     ORDER BY m.MSG_ID`).map((m) => ({
       ...m,
-      sentiment: round(m.sentiment, 4),
-      fkGrade: round(m.fkGrade, 2),
-      readingEase: round(m.readingEase, 2),
+      sentiment: score(m.sentiment, 4),
+      fkGrade: score(m.fkGrade, 2),
+      readingEase: score(m.readingEase, 2),
       // schema reserves these for the user/context join; currently unpopulated
       fitbitPid: m.fitbitPid || null,
       fitbit: m.fitbit || null,
@@ -352,7 +371,7 @@ function readDb() {
            ${pick(sCols, "LLM_SCORES", "PROMOTE_CONF", "promoteConf")},
            ${pick(sCols, "LLM_SCORES", "ACCEPTABLE_CONF", "acceptableConf")},
            ${pick(sCols, "LLM_SCORES", "AI_CONF", "aiConf")}
-    FROM LLM_SCORES`);
+    FROM LLM_SCORES`).map(cleanScoreRow);
 
   const bctNames = Object.fromEntries(
     q(`SELECT BCT_URI uri, BCT_NAME name, LEVEL level, DEFINITION definition FROM BCTS`).map((b) => [b.uri, b])
