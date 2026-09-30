@@ -2,7 +2,6 @@
 
 import { StatTile, ChartCard, HBars, AcceptRejectBars, LineChart, fmt } from "../charts";
 import { summarize, gateFailures, bctCounts, countsByDate } from "../data";
-import { stepsVsMessages } from "../participants";
 
 export default function Overview({ data, filtered, set, setView }) {
   const { messages, sends, users } = filtered;
@@ -11,11 +10,11 @@ export default function Overview({ data, filtered, set, setView }) {
   const byBct = bctCounts(messages);
   const gates = gateFailures(messages);
   const sendSeries = countsByDate(sends, data.dates);
-  const svm = stepsVsMessages(data.users, sends);
 
   const runRows = data.runs
-    .filter((r) => messages.some((m) => m.batchKey === r.id))
+    .filter((r) => messages.some((m) => m.runKey === r.id))
     .map((r) => ({ key: r.id, label: `${r.devCycle} / ${r.label}`, accepted: r.accepted || 0, rejected: r.rejected || 0 }))
+    .filter((r) => r.accepted + r.rejected > 0)
     .sort((a, b) => b.accepted + b.rejected - (a.accepted + a.rejected));
 
   return (
@@ -43,7 +42,6 @@ export default function Overview({ data, filtered, set, setView }) {
         <StatTile label="Rejected" value={fmt(s.rejected)} hint="with a written reason" tone="critical" />
         <StatTile label="Acceptance rate" value={s.acceptanceRate == null ? "—" : `${s.acceptanceRate}%`} hint="across filtered runs" />
         <StatTile label="BCTs used" value={fmt(s.bctsUsed)} hint={`${data.bctCatalog.length} targeted by the study`} />
-        <StatTile label="Batches / runs" value={fmt(s.batches)} hint={`${data.runs.length} agentic runs on disk`} />
         <StatTile label="Messages sent" value={fmt(s.sends)} hint={`${fmt(s.uniqueSent)} unique${data.participantsAreMock ? " · mock" : ""}`} />
         <StatTile label="Participants reached" value={`${s.usersReached}/${data.users.length}`} hint={`${s.failedSends} failed deliveries${data.participantsAreMock ? " · mock" : ""}`} />
       </dl>
@@ -108,20 +106,6 @@ export default function Overview({ data, filtered, set, setView }) {
           />
         </ChartCard>
       </div>
-
-      <h2 style={{ fontSize: 15, margin: "22px 0 10px", letterSpacing: "-0.01em" }}>
-        Steps on message days vs quiet days
-      </h2>
-      <dl className="a4a-tiles">
-        <StatTile label="Avg steps · message day" value={fmt(svm.withMessage)} hint={`n = ${fmt(svm.nWith)} person-days`} />
-        <StatTile label="Avg steps · no message" value={fmt(svm.withoutMessage)} hint={`n = ${fmt(svm.nWithout)} person-days`} />
-        <StatTile
-          label="Difference"
-          value={`${svm.withMessage - svm.withoutMessage > 0 ? "+" : ""}${fmt(svm.withMessage - svm.withoutMessage)}`}
-          hint="message day minus quiet day"
-          tone={svm.withMessage >= svm.withoutMessage ? "good" : "critical"}
-        />
-      </dl>
 
       <div style={{ marginTop: 18 }}>
         <button className="a4a-reset" onClick={() => setView("messages")}>

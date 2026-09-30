@@ -41,7 +41,7 @@ export default function Pipeline({ data, filtered, set }) {
   return (
     <>
       <dl className="a4a-tiles">
-        <StatTile label="Agentic runs" value={fmt(runs.length)} hint={`${new Set(runs.map((r) => r.devCycle)).size} dev cycles`} />
+        <StatTile label="Runs" value={fmt(runs.length)} hint={`${new Set(runs.map((r) => r.devCycle)).size} source${new Set(runs.map((r) => r.devCycle)).size === 1 ? "" : "s"}`} />
         <StatTile label="Generation cycles" value={fmt(totalCycles)} hint="candidates the loop produced" />
         <StatTile label="Accepted" value={fmt(totalAccepted)} tone="good" hint={`${((totalAccepted / (totalAccepted + totalRejected)) * 100).toFixed(1)}% overall`} />
         <StatTile label="Rejected" value={fmt(totalRejected)} tone="critical" hint="every one with a reason" />
@@ -54,7 +54,7 @@ export default function Pipeline({ data, filtered, set }) {
       <div className="a4a-grid cols-2">
         <ChartCard
           title="Yield per run"
-          subtitle="Most runs saturate — the loop stops after a long rejection streak, not on reaching its target."
+          subtitle="How many candidates each run produced, and how many survived review."
           source="real"
           table={<SimpleTable head={["Run", "Cycles", "Accepted", "Rejected", "Rate"]} rows={runs.map((r) => [`${r.devCycle}/${r.label}`, fmt(r.totalCycles), fmt(r.accepted), fmt(r.rejected), `${r.acceptanceRatePct}%`])} />}
         >
@@ -63,7 +63,7 @@ export default function Pipeline({ data, filtered, set }) {
 
         <ChartCard
           title="Where candidates die"
-          subtitle="Summed across all 16 runs, from each run's summary.json."
+          subtitle={`Summed across ${runs.length} run${runs.length === 1 ? "" : "s"}.`}
           source="real"
           table={<SimpleTable head={["Gate", "Rejections"]} rows={gateTotals.map((g) => [g.label, fmt(g.value)])} />}
         >

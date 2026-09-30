@@ -95,6 +95,47 @@ function batchLabeller(messages) {
   };
 }
 
+// The current schema records runs in the database; older output recorded them
+// as folders on disk. Both are summarised the same way so the Pipeline view can
+// read either without caring which it got.
+function runsFromDb(snap, dbMessages) {
+  const tally = {};
+  for (const m of dbMessages) {
+    if (m.runId == null) continue;
+    const run = (tally[m.runId] ??= { total: 0, accepted: 0, rejected: 0, gates: {}, models: new Set() });
+    run.total++;
+    if (m.status === "accepted") run.accepted++;
+    else if (m.status === "rejected") run.rejected++;
+    for (const gate of m.failedGates || []) run.gates[gate] = (run.gates[gate] || 0) + 1;
+    if (m.model) run.models.add(m.model);
+  }
+
+  const meta = {};
+  for (const r of snap.db?.runs || []) meta[r.id] = r;
+
+  return Object.entries(tally).map(([id, run]) => {
+    const info = meta[id] || meta[Number(id)] || {};
+    const judged = run.accepted + run.rejected;
+    return {
+      id: `run-${id}`,
+      label: info.startTime ? `Run ${id} · ${info.startTime.slice(0, 10)}` : `Run ${id}`,
+      devCycle: info.gitBranch || info.archType || "database",
+      totalCycles: run.total,
+      accepted: run.accepted,
+      rejected: run.rejected,
+      acceptanceRatePct: judged ? +((run.accepted / judged) * 100).toFixed(1) : null,
+      rejectionsByCritic: run.gates,
+      failureGates: run.gates,
+      generatorModel: [...run.models][0] || null,
+      gitHash: info.gitHash || null,
+      startTime: info.startTime || null,
+      // present on folder-based runs only
+      criticModel: null, diversityPromptVersion: null, stopReason: null,
+      targetBct: null, targetBctName: null, agentModes: null, path: null,
+    };
+  });
+}
+
 function normalize(snap) {
   const bctCatalog = snap.bctCatalog || [];
   const bctNames = snap.db?.bctNames || {};
@@ -161,6 +202,7 @@ function normalize(snap) {
       scoreRows: rows,
       uid: m.uid ?? null,
       runId: m.runId ?? null,
+      runKey: m.runId != null ? `run-${m.runId}` : null,
       critic: m.rejectedBy ?? null,
       reason: m.rejectedReason ?? null,
       failedGates: m.failedGates ?? [],
@@ -174,6 +216,7 @@ function normalize(snap) {
   });
 
   const runById = Object.fromEntries((snap.agentic?.runs || []).map((r) => [r.id, r]));
+  const dbRuns = runsFromDb(snap, dbMessages);
 
   const agenticMessages = (snap.agentic?.candidates || []).map((c) => {
     const uri = BCT_KEY_TO_URI[c.bct] || null;
@@ -193,6 +236,7 @@ function normalize(snap) {
       date: null,
       // agentic-specific
       runId: c.runId,
+      runKey: c.runId,
       cycle: c.cycle,
       idx: c.idx,
       coreIdea: c.coreIdea,
@@ -220,11 +264,11 @@ function normalize(snap) {
       source: "db",
       count: batches.count(b),
     })),
-    ...(snap.agentic?.runs || []).map((r) => ({
+    ...[...dbRuns, ...(snap.agentic?.runs || [])].map((r) => ({
       key: r.id,
       label: `${r.devCycle} / ${r.label}`,
       source: "agentic",
-      count: (r.accepted || 0) + (r.rejected || 0),
+      count: r.totalCycles ?? (r.accepted || 0) + (r.rejected || 0),
       run: r,
     })),
   ];
@@ -256,7 +300,7 @@ function normalize(snap) {
     batches: batchList,
     bcts,
     bctCatalog,
-    runs: snap.agentic?.runs || [],
+    runs: [...dbRuns, ...(snap.agentic?.runs || [])],
     prompts: snap.db?.prompts || [],
     writers: snap.db?.writers || [],
     weather: snap.weather || [],
@@ -305,7 +349,7 @@ export function filterMessages(messages, f, sendsByMessageKey) {
     if (f.source && m.source !== f.source) return false;
     if (f.bctUri && m.bctUri !== f.bctUri) return false;
     if (f.batchKey && m.batchKey !== f.batchKey) return false;
-    if (f.runId && m.runId !== f.runId) return false;
+    if (f.runId && m.runKey !== f.runId) return false;
     if (f.status && m.status !== f.status) return false;
     // participant scoping: only messages actually routed to that participant
     if ((f.uid || f.zip) && sendsByMessageKey) {

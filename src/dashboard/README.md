@@ -10,7 +10,7 @@ The browser fetches it once, `data.js` normalises it, and six views read the sam
 filtered slice. There is no live query, which is why the dashboard runs with no
 backend; the cost is that it shows a point in time until the snapshot is rebuilt.
 
-## Two message sources
+## Message sources
 
 They are produced by different efforts and carry different evidence:
 

@@ -144,31 +144,6 @@ export function zipRollup(users, sends, weatherByDate, dates) {
     .sort((a, b) => a.zip.localeCompare(b.zip));
 }
 
-// Steps on days a message arrived against days it did not. There is no
-// day-after figure: activity following a send is not tracked, so any such
-// number would be an artefact of this mock.
-export function stepsVsMessages(users, sends) {
-  const sentDates = {};
-  for (const s of sends) (sentDates[s.uid] ??= new Set()).add(s.date);
-
-  const withMsg = [];
-  const withoutMsg = [];
-  for (const u of users) {
-    if (!u.fitbitLinked) continue;
-    const sent = sentDates[u.uid] ?? new Set();
-    for (const [date, steps] of Object.entries(u.steps)) {
-      (sent.has(date) ? withMsg : withoutMsg).push(steps);
-    }
-  }
-
-  return {
-    withMessage: mean(withMsg),
-    withoutMessage: mean(withoutMsg),
-    nWith: withMsg.length,
-    nWithout: withoutMsg.length,
-  };
-}
-
 // One row per day for a single participant: steps, weather, messages received.
 export function userTimeline(user, sends, dates, weatherByDate) {
   const byDate = {};

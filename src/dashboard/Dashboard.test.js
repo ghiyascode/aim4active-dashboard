@@ -184,11 +184,34 @@ describeIf("admin dashboard", () => {
     expect(idCells.length).toBeGreaterThan(0);
   }, 40000);
 
-  test("pipeline view reports the real run count", async () => {
+  // Runs come from the database and/or the folder artifacts; the view counts both.
+  test("pipeline view reports every run in the snapshot", async () => {
+    const dbRunIds = new Set(
+      snapshot.db.messages.filter((m) => m.runId != null).map((m) => m.runId)
+    );
+    const expected = dbRunIds.size + snapshot.agentic.runs.length;
     await renderReady();
     gotoView("Pipeline");
-    await waitFor(() => expect(screen.getByText("Agentic runs")).toBeInTheDocument());
-    expect(screen.getAllByText(String(snapshot.agentic.runs.length)).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByText("Runs")).toBeInTheDocument());
+    expect(screen.getAllByText(String(expected)).length).toBeGreaterThan(0);
+  }, 40000);
+
+  // The gate breakdown must survive coming from the database rather than folders.
+  test("pipeline shows per-gate rejections from whichever source has them", async () => {
+    const gates = {};
+    for (const m of snapshot.db.messages) for (const g of m.failedGates || []) gates[g] = true;
+    for (const r of snapshot.agentic.runs) for (const g of Object.keys(r.rejectionsByCritic || {})) gates[g] = true;
+    const names = Object.keys(gates);
+    if (!names.length) return;
+
+    await renderReady();
+    gotoView("Pipeline");
+    await waitFor(() => expect(screen.getByText("Where candidates die")).toBeInTheDocument());
+    // every gate present in the data appears somewhere on the page
+    const page = document.body.textContent.toLowerCase();
+    for (const g of names) {
+      expect(page).toContain(g.replace(/_/g, " ").toLowerCase());
+    }
   }, 40000);
 
   test("matrix renders a cell grid", async () => {

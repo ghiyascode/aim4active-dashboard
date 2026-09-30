@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { ChartCard, StatTile, LineChart, Sparkline, fmt } from "../charts";
 import { SimpleTable } from "./Overview";
-import { zipRollup, stepsVsMessages, userTimeline } from "../participants";
+import { zipRollup, userTimeline } from "../participants";
 import { STATUS } from "../palette";
 
 export default function Participants({ data, filtered, filters, set }) {
@@ -15,7 +15,8 @@ export default function Participants({ data, filtered, filters, set }) {
   const sends = filtered.sends;
 
   const zips = zipRollup(users, sends, data.weatherByDate, data.dates);
-  const svm = stepsVsMessages(users, sends);
+  const allSteps = users.flatMap((u) => Object.values(u.steps));
+  const avgSteps = allSteps.length ? Math.round(allSteps.reduce((a, b) => a + b, 0) / allSteps.length) : 0;
   const open = openId ? users.find((u) => u.uid === openId) : null;
 
   return (
@@ -43,7 +44,7 @@ export default function Participants({ data, filtered, filters, set }) {
         <StatTile label="Participants" value={fmt(users.length)} hint={`${users.filter((u) => u.fitbitLinked).length} with a linked Fitbit`} />
         <StatTile label="Fitbit issues" value={fmt(users.filter((u) => u.tokenStatus !== "valid").length)} hint="unlinked or expiring token" tone={users.some((u) => u.tokenStatus !== "valid") ? "warning" : "good"} />
         <StatTile label="Messages sent" value={fmt(sends.length)} hint={`${fmt(sends.filter((s) => s.deliveryStatus === "failed").length)} failed`} />
-        <StatTile label="Avg steps · message day" value={fmt(svm.withMessage)} hint={`vs ${fmt(svm.withoutMessage)} on quiet days`} />
+        <StatTile label="Avg daily steps" value={fmt(avgSteps)} hint={`across ${fmt(data.dates.length)} days`} />
       </dl>
 
       <div className="a4a-grid cols-2">
