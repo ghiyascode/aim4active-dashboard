@@ -16,11 +16,10 @@ const STUDY_DAYS = 30;
 const PARTICIPANTS = 12;
 
 // Participants are identified by UID. Names are not collected, and the USERS
-// table has no column for them.
+// table has no column for them. Race and ethnicity are excluded by study
+// decision, so the mock does not invent them either.
 const GENDERS = ["F", "M"];
-const RACES = ["White", "Black", "Asian", "Other"];
 const WEIGHT_CATEGORIES = ["Normal", "Overweight", "Obese"];
-const ETHNICITIES = ["Hispanic", "Not Hispanic"];
 
 // Zips within one metro, so they share a single weather series.
 const ZIPS = [
@@ -88,12 +87,9 @@ export function buildParticipants(weather, accepted) {
 
     users.push({
       uid: `U${String(i + 1).padStart(3, "0")}`,
-      phone: `+1817300${String(1400 + i * 7).padStart(4, "0")}`,
       age: int(45, 82),
       gender: pick(GENDERS),
-      race: pick(RACES),
       weightCategory: pick(WEIGHT_CATEGORIES),
-      ethnicity: pick(ETHNICITIES),
       zip,
       area,
       fitbitLinked: linked,

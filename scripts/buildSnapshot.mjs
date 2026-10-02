@@ -233,8 +233,11 @@ function readCurrentSchema(q, tables) {
 
   // Real participants. This schema stores no names by design.
   let users = has("USERS")
-    ? safe(`SELECT UID uid, PHONE_NUMBER phone, AGE age, GENDER gender, RACE race,
-                   WEIGHT_CATEGORY weightCategory, ETHNITICITY ethnicity FROM USERS ORDER BY UID`)
+    // RACE and ETHNITICITY are deliberately not selected. They stay in the
+    // database; they do not enter the snapshot, and so cannot reach the
+    // browser or the deployed server.
+    ? safe(`SELECT UID uid, AGE age, GENDER gender, WEIGHT_CATEGORY weightCategory
+            FROM USERS ORDER BY UID`)
     : [];
 
   // A run can reference participants without USERS having been written. Fall

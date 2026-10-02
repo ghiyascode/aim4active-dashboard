@@ -56,12 +56,9 @@ function buildReal(snap, deliveredMessages) {
     };
     return {
       uid: u.uid,
-      phone: u.phone ?? null,
       age: u.age ?? null,
       gender: u.gender ?? null,
-      race: u.race ?? null,
       weightCategory: u.weightCategory ?? null,
-      ethnicity: u.ethnicity ?? null,
       zip: sharedZip,
       area: null,
       fitbitLinked: days.length > 0,
