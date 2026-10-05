@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    build: .
+    image: aim4active-dashboard
+    container_name: aim4active-dashboard
+    restart: unless-stopped
+
+    # Host port 8080 -> nginx on 80 inside the container.
+    # Change the left number if 8080 is already taken on the server.
+    ports:
+      - "8080:80"
+
+    # The encrypted snapshot lives on the server, not in the image. Build it on
+    # your laptop (npm run snapshot) and copy it next to this file.
+    volumes:
+      - ./snapshot.json:/usr/share/nginx/html/admin/data/snapshot.json:ro

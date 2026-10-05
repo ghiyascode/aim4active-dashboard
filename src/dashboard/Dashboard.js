@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import "./dashboard.css";
 import { useDashboardData, useFiltered, EMPTY_FILTERS, SNAPSHOT_URL } from "./data";
+import Unlock from "./Unlock";
 import Overview from "./views/Overview";
 import Messages from "./views/Messages";
 import Matrix from "./views/Matrix";
@@ -20,7 +21,7 @@ const VIEWS = [
 ];
 
 export default function Dashboard() {
-  const { status, data, error } = useDashboardData();
+  const { status, data, error, unlock, unlockError, unlockBusy } = useDashboardData();
   const [view, setView] = useState("overview");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
 
@@ -39,6 +40,16 @@ export default function Dashboard() {
       raw: filtered.messages.length,
     };
   }, [data, filtered]);
+
+  // The passphrase gate stands in front of the whole dashboard, before any
+  // navigation or filter state is worth showing.
+  if (status === "locked") {
+    return (
+      <div className="a4a a4a-locked">
+        <Unlock onSubmit={unlock} error={unlockError} busy={unlockBusy} />
+      </div>
+    );
+  }
 
   return (
     <div className="a4a">
@@ -82,6 +93,15 @@ export default function Dashboard() {
                 <code className="a4a-mono">npm run snapshot</code>
               </p>
             </div>
+          </div>
+        )}
+
+        {status === "ready" && data.unprotected && (
+          <div className="a4a-unprotected">
+            <b>This snapshot is not encrypted.</b> It was built without a passphrase, so anyone
+            who can reach <span className="a4a-mono">{SNAPSHOT_URL}</span> can read it. Fine
+            locally; rebuild with <span className="a4a-mono">A4A_PASSPHRASE</span> before putting
+            it on a server.
           </div>
         )}
 

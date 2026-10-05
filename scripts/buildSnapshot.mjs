@@ -15,6 +15,8 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import readline from "node:readline/promises";
+import { encryptSnapshot } from "./encrypt.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UI = path.resolve(__dirname, "..");
@@ -512,6 +514,8 @@ const weather = readWeather();
 
 const snapshot = {
   generatedAt: new Date().toISOString(),
+  // Filled in below, once the passphrase (if any) is known.
+  protected: false,
   sources: {
     db: db ? path.basename(DB_FILE) : null,
     agenticRuns: agentic.runs.length,
@@ -525,7 +529,47 @@ const snapshot = {
 };
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
-fs.writeFileSync(OUT, JSON.stringify(snapshot));
+
+// A passphrase makes the published file ciphertext; without one it is plain
+// JSON, which is fine locally and never fine on a server.
+//
+// It can come from A4A_PASSPHRASE, or be typed when run interactively. Asking
+// is the default so nobody has to remember the variable name.
+async function resolvePassphrase() {
+  const fromEnv = process.env.A4A_PASSPHRASE;
+  if (fromEnv) return fromEnv;
+  if (process.env.A4A_NO_ENCRYPT) return null;       // explicit opt out
+  if (!process.stdin.isTTY) return null;             // CI, pipes, scripts
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  console.log("");
+  try {
+    const answer = await rl.question(
+      "  Encrypt this snapshot? Enter a passphrase, or press Enter to skip: "
+    );
+    return answer.trim() || null;
+  } catch {
+    // Ctrl+C or Ctrl+D at the prompt: treat as "skip" rather than crashing.
+    return null;
+  } finally {
+    rl.close();
+  }
+}
+
+const passphrase = await resolvePassphrase();
+snapshot.protected = Boolean(passphrase);
+const plaintext = JSON.stringify(snapshot);
+
+if (passphrase) {
+  if (passphrase.length < 12) {
+    console.error(`\n  ! That passphrase is ${passphrase.length} characters. Use at least 12.`);
+    console.error("    Four unrelated words works well, e.g. plateau-cinnamon-harbor-ninety\n");
+    process.exit(1);
+  }
+  fs.writeFileSync(OUT, JSON.stringify(await encryptSnapshot(plaintext, passphrase)));
+} else {
+  fs.writeFileSync(OUT, plaintext);
+}
 
 const mb = (fs.statSync(OUT).size / 1024 / 1024).toFixed(2);
 console.log(`
@@ -539,5 +583,5 @@ console.log(`
   bct catalog         ${bctCatalog.length}
   weather days        ${weather.length}
 
-  -> ${path.relative(ROOT, OUT)}  (${mb} MB)
-`);
+  -> ${path.relative(ROOT, OUT)}  (${mb} MB)${passphrase ? "  [encrypted]" : ""}
+${passphrase ? "" : "  ! Not encrypted. Fine locally; re-run and enter a passphrase before deploying.\n"}`);

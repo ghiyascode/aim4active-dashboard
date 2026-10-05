@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="AIM4Active">
+  <title>AIM4Active</title>
+  <path
+    d="M16 28S3 19.5 3 11.6C3 7.4 6.1 4 10 4c2.6 0 4.9 1.4 6 3.5C17.1 5.4 19.4 4 22 4c3.9 0 7 3.4 7 7.6C29 19.5 16 28 16 28z"
+    fill="#2a78d6"/>
+  <path
+    d="M4.5 15.2h5.2l2.1-5 3.9 9.4 2.6-6 1.6 1.6h7.6"
+    fill="none" stroke="#ffffff" stroke-width="2.4"
+    stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

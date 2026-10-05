@@ -1,7 +1,11 @@
 {
-  "short_name": "Fitbit",
-  "name": "Fitbit",
+  "short_name": "AIM4Active",
+  "name": "AIM4Active Dashboard",
+  "icons": [
+    { "src": "favicon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ],
+  "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#2a78d6",
+  "background_color": "#f4f6f7"
 }

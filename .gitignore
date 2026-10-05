@@ -6,9 +6,14 @@
 # The generated snapshot is derived from the database, so it is not committed
 # either. Rebuild it with `npm run snapshot`.
 public/admin/data/snapshot.json
+# and the copy mounted into the container
+/snapshot.json
 
 node_modules/
 build/
+
+# Kept local: deployment notes and server specifics are not for the public repo.
+DEPLOYMENT.md
 
 npm-debug.log*
 yarn-error.log*

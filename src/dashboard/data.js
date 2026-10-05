@@ -13,9 +13,13 @@
 // They are merged on the fields they share and keep the fields they do not, so
 // one search box covers both.
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { BCT_KEY_TO_URI, bctColor } from "./palette";
 import { buildParticipantLayer } from "./participants";
+import {
+  isEncrypted, isSupported, decryptSnapshot,
+  rememberPassphrase, recallPassphrase, forgetPassphrase,
+} from "./decrypt";
 
 export const SNAPSHOT_URL = `${process.env.PUBLIC_URL || ""}/admin/data/snapshot.json`;
 
@@ -296,6 +300,7 @@ function normalize(snap) {
 
   return {
     snapshot: snap,
+    unprotected: snap.protected === false,
     messages,
     batches: batchList,
     bcts,
@@ -310,22 +315,74 @@ function normalize(snap) {
 }
 
 // Loader hook
+/**
+ * Loads the snapshot, and unlocks it first when it is encrypted.
+ *
+ * Statuses: loading -> (locked ->) ready | error. "locked" means the file
+ * arrived but is ciphertext and needs a passphrase, which the caller collects
+ * and passes back through unlock().
+ */
 export function useDashboardData() {
   const [state, setState] = useState({ status: "loading", data: null, error: null });
+  const [payload, setPayload] = useState(null);
+  const [unlockError, setUnlockError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const open = useCallback((snap, passphrase) => {
+    setState({ status: "ready", data: normalize(snap), error: null });
+    if (passphrase) rememberPassphrase(passphrase);
+  }, []);
 
   useEffect(() => {
     let live = true;
+
     fetch(SNAPSHOT_URL)
       .then((r) => {
         if (!r.ok) throw new Error(`snapshot returned ${r.status}`);
         return r.json();
       })
-      .then((snap) => live && setState({ status: "ready", data: normalize(snap), error: null }))
-      .catch((e) => live && setState({ status: "error", data: null, error: e.message }));
-    return () => { live = false; };
-  }, []);
+      .then(async (snap) => {
+        if (!live) return;
+        if (!isEncrypted(snap)) return open(snap);
 
-  return state;
+        setPayload(snap);
+        // A passphrase from earlier in this tab skips the prompt.
+        const saved = recallPassphrase();
+        if (saved && isSupported()) {
+          try {
+            return open(await decryptSnapshot(snap, saved), saved);
+          } catch {
+            forgetPassphrase();
+          }
+        }
+        if (live) setState({ status: "locked", data: null, error: null });
+      })
+      .catch((e) => live && setState({ status: "error", data: null, error: e.message }));
+
+    return () => { live = false; };
+  }, [open]);
+
+  const unlock = useCallback(
+    async (passphrase) => {
+      if (!payload) return;
+      setBusy(true);
+      setUnlockError(null);
+      try {
+        open(await decryptSnapshot(payload, passphrase), passphrase);
+      } catch (e) {
+        setUnlockError(
+          e.message === "wrong-passphrase"
+            ? "That passphrase did not work. Check it and try again."
+            : `Could not unlock: ${e.message}`
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [payload, open]
+  );
+
+  return { ...state, unlock, unlockError, unlockBusy: busy };
 }
 
 // One filter predicate, shared by every view.

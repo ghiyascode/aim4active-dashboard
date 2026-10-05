@@ -7,6 +7,7 @@
 
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import Landing from "./Landing";
+import { Terms, Privacy } from "./Legal";
 import Dashboard from "./dashboard/Dashboard";
 
 export default function App() {
@@ -14,6 +15,8 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/admin" element={<Dashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

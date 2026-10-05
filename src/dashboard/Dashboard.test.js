@@ -15,14 +15,22 @@ import path from "path";
 import Dashboard from "./Dashboard";
 
 const SNAPSHOT_PATH = path.join(__dirname, "..", "..", "public", "admin", "data", "snapshot.json");
-const hasSnapshot = fs.existsSync(SNAPSHOT_PATH);
-const describeIf = hasSnapshot ? describe : describe.skip;
+
+// The data tests need a readable snapshot. A build made with A4A_PASSPHRASE is
+// ciphertext, so they are skipped rather than failing confusingly; rebuild
+// without the passphrase to run them.
+function readableSnapshot() {
+  if (!fs.existsSync(SNAPSHOT_PATH)) return null;
+  const parsed = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, "utf8"));
+  return parsed.a4aEncrypted ? null : parsed;
+}
+const describeIf = readableSnapshot() ? describe : describe.skip;
 
 describeIf("admin dashboard", () => {
   let snapshot;
 
   beforeAll(() => {
-    snapshot = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, "utf8"));
+    snapshot = readableSnapshot();
   });
 
   beforeEach(() => {
@@ -40,6 +48,42 @@ describeIf("admin dashboard", () => {
     const heading = screen.getByRole("heading", { level: 3 });
     return Number(heading.textContent.replace(/[^0-9]/g, ""));
   };
+
+  // An encrypted snapshot must stop at the passphrase prompt rather than
+  // rendering anything, and a wrong passphrase must not get past it.
+  test("an encrypted snapshot is gated behind the passphrase prompt", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ a4aEncrypted: 1, kdf: "PBKDF2-SHA256", iterations: 310000, salt: "AAAA", iv: "AAAA", ciphertext: "AAAA" }),
+      })
+    );
+
+    render(<Dashboard />);
+    await waitFor(() => expect(screen.getByText("Dashboard access")).toBeInTheDocument());
+
+    // nothing from the dashboard itself is on the page
+    expect(screen.queryByLabelText("Search messages")).not.toBeInTheDocument();
+    expect(screen.queryByText(/messages in scope/)).not.toBeInTheDocument();
+  }, 40000);
+
+  // The public page must never carry study data, whatever else changes.
+  test("the landing page carries no study data", async () => {
+    const { default: App } = await import("../App");
+    window.history.pushState({}, "", "/");
+    render(<App />);
+    await waitFor(() => expect(screen.getByText("AIM4Active")).toBeInTheDocument());
+
+    const text = document.body.textContent;
+    const uids = new Set((snapshot.db.dailyActivity || []).map((a) => a.uid));
+    for (const uid of uids) expect(text).not.toContain(uid);
+    for (const m of snapshot.db.messages.slice(0, 20)) {
+      expect(text).not.toContain(m.text.slice(0, 40));
+    }
+    // and the legal links are present
+    expect(screen.getByText("Terms of Use")).toBeInTheDocument();
+    expect(screen.getByText("Privacy Policy")).toBeInTheDocument();
+  }, 40000);
 
   test("loads the snapshot and reports the real total", async () => {
     await renderReady();

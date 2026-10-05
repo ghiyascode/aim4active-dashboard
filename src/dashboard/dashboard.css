@@ -242,3 +242,163 @@
   .a4a-brand, .a4a-nav-foot { display: none; }
   .a4a-main { padding: 16px; }
 }
+
+/* ---------------------------------------------------------- unlock */
+.a4a.a4a-locked { display: block; }
+
+.a4a-unlock {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.a4a-unlock-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 36px 38px 30px;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.a4a-unlock-eyebrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 12px;
+}
+
+.a4a-unlock-card h1 {
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+
+.a4a-unlock-lede { color: var(--ink-2); font-size: 14px; margin: 0 0 22px; }
+
+.a4a-unlock-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.a4a-unlock-field span { font-size: 12px; color: var(--ink-3); }
+.a4a-unlock-field input {
+  font: inherit;
+  padding: 9px 11px;
+  border: 1px solid var(--axis);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.a4a-unlock-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.a4a-unlock-field input[aria-invalid="true"] { border-color: var(--critical); }
+
+.a4a-unlock-error {
+  color: var(--critical);
+  font-size: 13px;
+  margin: 0 0 14px;
+}
+
+.a4a-unlock-button {
+  appearance: none;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.a4a-unlock-button:disabled { opacity: 0.5; cursor: default; }
+.a4a-unlock-button:not(:disabled):hover { background: #2166b8; }
+
+.a4a-unlock-note {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--grid);
+}
+
+/* ------------------------------------------------------------------ polish
+   Refinements to the existing look rather than a new one: softer surfaces,
+   motion only where it signals interactivity, and clearer focus states. */
+
+.a4a-card,
+.a4a-tile {
+  box-shadow: 0 1px 2px rgba(11, 16, 22, 0.04);
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+
+/* Only cards that respond to the pointer lift. Static ones stay put. */
+.a4a-card:has(.a4a-row-click:hover),
+.a4a-card:has(.a4a-cell:hover) {
+  box-shadow: 0 2px 10px rgba(11, 16, 22, 0.07);
+}
+
+/* Nav: a colour rail on the current item reads faster than fill alone. */
+.a4a-nav button {
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  transition: background 110ms ease, color 110ms ease, border-color 110ms ease;
+}
+.a4a-nav button[aria-current="page"] { border-left-color: var(--accent); }
+
+/* Tables: row hover and the sticky header need to feel settled. */
+.a4a-table tbody tr { transition: background 90ms ease; }
+.a4a-table thead th { box-shadow: inset 0 -1px 0 var(--axis); border-bottom: 0; }
+.a4a-table tbody tr.selected td { box-shadow: inset 2px 0 0 var(--accent); }
+
+/* Stat tiles: let the number breathe and sit on a baseline with its label. */
+.a4a-tile dd { letter-spacing: -0.025em; }
+.a4a-tile:has(dd) { display: flex; flex-direction: column; justify-content: space-between; }
+
+/* Matrix cells: a hover lift that does not shift neighbours. */
+.a4a-cell { transition: transform 90ms ease, outline-color 90ms ease; }
+.a4a-cell:hover { transform: scale(1.04); position: relative; z-index: 1; }
+
+/* Buttons and controls: one consistent focus treatment. */
+.a4a-toggle, .a4a-reset, .a4a-pager button, .a4a-cell,
+.a4a-filters select, .a4a-filters input {
+  transition: background 110ms ease, border-color 110ms ease, color 110ms ease;
+}
+.a4a :is(button, select, input, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Section headings inside views, which previously had no shared treatment. */
+.a4a-main h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--grid);
+}
+
+/* The unencrypted-snapshot warning. */
+.a4a-unprotected {
+  background: #fff4e5;
+  border: 1px solid #f0d9b5;
+  border-left: 3px solid var(--warning);
+  border-radius: 6px;
+  padding: 11px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.a4a-unprotected b { color: var(--ink); }
+
+/* Respect a reduced-motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  .a4a *, .a4a *::before, .a4a *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .a4a-cell:hover { transform: none; }
+}

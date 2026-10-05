@@ -1,0 +1,12 @@
+node_modules
+build
+.git
+.gitignore
+*.db
+*.db-shm
+*.db-wal
+public/admin/data/snapshot.json
+snapshot.json
+DEPLOYMENT.md
+npm-debug.log*
+.DS_Store
