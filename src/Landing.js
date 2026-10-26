@@ -119,7 +119,7 @@ export default function Landing() {
               If you need access, ask the study team. The passphrase is shared, not personal.
             </p>
           </div>
-          <a className="landing-cta" href="/admin">Open the dashboard</a>
+          <Link className="landing-cta" to="/admin">Open the dashboard</Link>
         </section>
       </main>
 

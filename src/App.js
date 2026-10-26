@@ -12,7 +12,9 @@ import Dashboard from "./dashboard/Dashboard";
 
 export default function App() {
   return (
-    <Router>
+    // basename lets the same build run at the root or under a sub-path such as
+    // /aim4active, set at build time through PUBLIC_URL (see Dockerfile).
+    <Router basename={process.env.PUBLIC_URL || "/"}>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/terms" element={<Terms />} />

@@ -14,6 +14,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# The path the site is served under, e.g. /aim4active behind the shared domain.
+# Empty serves it at the root. Set from compose.yaml.
+ARG PUBLIC_URL=""
+ENV PUBLIC_URL=$PUBLIC_URL
+
 COPY . .
 RUN npm run build
 

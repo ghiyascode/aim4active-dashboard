@@ -1,14 +1,20 @@
 services:
   dashboard:
-    build: .
+    build:
+      context: .
+      args:
+        # Served at https://idirprojects.uta.edu/aim4active/ through the host's
+        # nginx. Use "" to serve at the root instead.
+        PUBLIC_URL: /aim4active
     image: aim4active-dashboard
     container_name: aim4active-dashboard
     restart: unless-stopped
 
-    # Host port 8080 -> nginx on 80 inside the container.
+    # Host port 8080 -> nginx on 80 inside the container. Bound to localhost:
+    # the public traffic arrives through the host's nginx, over HTTPS.
     # Change the left number if 8080 is already taken on the server.
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
 
     # The encrypted snapshot lives on the server, not in the image. Build it on
     # your laptop (npm run snapshot) and copy it next to this file.
