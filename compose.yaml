@@ -16,7 +16,9 @@ services:
     ports:
       - "127.0.0.1:8080:80"
 
-    # The encrypted snapshot lives on the server, not in the image. Build it on
-    # your laptop (npm run snapshot) and copy it next to this file.
+    # The encrypted data lives on the server, not in the image. Build it on your
+    # laptop (npm run snapshot) and copy both files into ./data next to this
+    # file: snapshot.json and llm_logs.json. A folder rather than single files,
+    # so replacing them takes effect without restarting the container.
     volumes:
-      - ./snapshot.json:/usr/share/nginx/html/admin/data/snapshot.json:ro
+      - ./data:/usr/share/nginx/html/admin/data:ro

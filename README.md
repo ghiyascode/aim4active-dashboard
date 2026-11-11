@@ -73,6 +73,7 @@ shown with the number of messages behind it:
 | `/terms`, `/privacy` | Policy pages | Public |
 | `/admin` | The dashboard | Per-user sign-in |
 | `/admin/data/snapshot.json` | The data, encrypted for every user in `users.json` | Useless without an account |
+| `/admin/data/llm_logs.json` | Every LLM call, compressed and encrypted with the same key; loaded on demand | Useless without an account |
 
 ## Access
 
@@ -106,6 +107,7 @@ The dashboard works from a database alone. These add detail if present:
 | `A4A_AGENTIC` | `msg_gen/agentic` | older folder-based runs |
 | `A4A_PROCESSED` | `msg_gen/data/processed` | overrides the bundled BCT catalogue |
 | `A4A_ROOT` | project root | where the above are looked up |
+| `A4A_LLM_LOGS` | newest `llm_logs*.db` in the project root, else `../AIM4Active` | the LLM logs view and per-message generation history |
 | `A4A_USERS` | `users.json` | the accounts the published data file is encrypted for |
 | `A4A_NO_ENCRYPT` | unset | set to write plain JSON even when users exist (local testing) |
 
@@ -120,13 +122,14 @@ nothing about participants.
 scripts/buildSnapshot.mjs   snapshot builder (Node, built-in node:sqlite)
 scripts/encrypt.mjs         per-user snapshot encryption
 scripts/users.mjs           add, reset and remove accounts
+scripts/llmLogs.mjs         reads llm_logs.db and links calls to messages
 reference/                  BCT catalogue shipped with the repo
 src/
   App.js                    routes
   Landing.js                public landing page
   Legal.js                  terms and privacy shells
   dashboard/                the dashboard; see dashboard/README.md for internals
-public/admin/data/          where the snapshot is written (ignored by git)
+public/admin/data/          where snapshot.json and llm_logs.json are written (ignored by git)
 ```
 
 No third-party charting or data libraries.
@@ -142,6 +145,28 @@ assertions a given snapshot cannot support. They are skipped entirely if no
 snapshot exists, or if the one on disk is encrypted (rebuild with
 `A4A_NO_ENCRYPT=1` to run them).
 
+## LLM logs
+
+`npm run snapshot` also reads the pipeline's LLM call log (`llm_logs_*.db`, table
+`llm_calls`) into `llm_logs.json`. It powers two things:
+
+- **LLM logs view.** Every call: stage, model, verdict, latency, tokens, and the
+  full output, reasoning and prompt. Filter by stage, model and outcome; search
+  outputs (and optionally prompts).
+- **Generation history**, in each message's detail panel. Every attempt in the
+  message's batch, and for each attempt the generator call and the critic,
+  feedback and judge calls that evaluated it.
+
+The log has no message id, so calls are linked by text: a generator call's output
+is the candidate, critic prompts embed it, and judge prompts quote it. See
+`scripts/llmLogs.mjs` for the exact rules. The build prints how many messages
+were linked.
+
+**Mock history is disclosed.** Where no log covers a message (the July agentic run
+folders predate logging), the history is built from the run files and tagged
+`mock`. Attempt texts and gate verdicts are still real; the call records around
+them are placeholders, and no timings or token counts are invented.
+
 ## Data handling
 
 - **Participants are identified by UID.** Names are not collected and the study
@@ -154,6 +179,8 @@ snapshot exists, or if the one on disk is encrypted (rebuild with
 - **Panels tagged `mock` are fabricated.** That happens only when a snapshot has no
   participant activity; supply a database with `PERSONALIZATION_DAILY_ACTIVITY`
   rows and those panels become real on their own.
+- **The LLM log carries participant context.** Generator prompts include step
+  counts and goals, so `llm_logs.json` is encrypted exactly like the snapshot.
 - **Databases and snapshots are never committed.** `.gitignore` blocks `*.db` and
   the generated snapshot.
 

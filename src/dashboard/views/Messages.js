@@ -5,6 +5,8 @@ import { useState, useMemo } from "react";
 import { ChartCard } from "../charts";
 import { gateLabel, SCORE_DIMS } from "../data";
 import { STATUS } from "../palette";
+import { useLlmLogs, buildHistory } from "../llmLogs";
+import { CallItem, MockTag } from "./LlmCall";
 
 const PAGE = 40;
 
@@ -210,6 +212,8 @@ function Detail({ m, routed, data, set, onClose }) {
         </>
       )}
 
+      <GenerationHistory key={m.key} m={m} data={data} />
+
       {/* ---- judge scores (DB messages) ---- */}
       {m.scores && Object.values(m.scores).some((v) => v != null) && (
         <>
@@ -277,5 +281,93 @@ function Detail({ m, routed, data, set, onClose }) {
         </dl>
       )}
     </section>
+  );
+}
+
+const H4 = { fontSize: 12, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--ink-3)" };
+
+// Every LLM call behind this message: the attempts in its streak (drafts that
+// were rejected first), and for each one the generator call and the critic,
+// feedback and judge calls that evaluated it. Real where the LLM log covers the
+// message; otherwise built from the run files and flagged mock.
+function GenerationHistory({ m, data }) {
+  const { status, logs, error } = useLlmLogs(data);
+  const [expanded, setExpanded] = useState(false);
+
+  const history = useMemo(
+    () => (status === "loading" ? null : buildHistory(m, data.messages, logs)),
+    [m, data.messages, logs, status]
+  );
+
+  if (status === "loading") {
+    return (
+      <>
+        <h4 style={H4}>Generation history</h4>
+        <p className="a4a-call-empty" style={{ marginBottom: 16 }}>Loading the LLM log…</p>
+      </>
+    );
+  }
+
+  const anyMock = history.some((a) => a.mock);
+  const allMock = history.every((a) => a.mock);
+  const currentAt = history.findIndex((a) => a.current);
+  // Long streaks: show the last few attempts before this one unless expanded.
+  const KEEP = 4;
+  const hidden = expanded ? 0 : Math.max(0, currentAt - KEEP);
+  const shown = history.slice(hidden);
+  const calls = history.reduce((n, a) => n + a.calls.length, 0);
+
+  return (
+    <>
+      <h4 style={{ ...H4, display: "flex", alignItems: "center", gap: 8 }}>
+        Generation history {anyMock && <MockTag />}
+      </h4>
+      <p style={{ fontSize: 12, color: "var(--ink-2)", margin: "0 0 8px" }}>
+        Attempt {currentAt + 1} of {history.length} {m.source === "db" ? "in this batch" : "in this streak"} ·{" "}
+        {calls.toLocaleString()} LLM call{calls === 1 ? "" : "s"}. Open a call for its output, reasoning and prompt.
+      </p>
+
+      {status === "error" && (
+        <p className="a4a-note">
+          <b>The LLM log could not be loaded</b> ({error}). The history below is mock.
+        </p>
+      )}
+      {anyMock && status !== "error" && (
+        <p className="a4a-note">
+          <b>{allMock ? "Mock history." : "Partly mock."}</b>{" "}
+          {m.source === "agentic"
+            ? "No LLM log covers this agentic run; logging began with the September runs. "
+            : "Some attempts have no matching entry in the LLM log. "}
+          Attempt texts and gate verdicts are real, from {m.source === "agentic" ? "the run files" : "the database"}; call
+          entries marked mock are placeholders built from them.
+        </p>
+      )}
+
+      <ol className="a4a-history">
+        {hidden > 0 && (
+          <li className="a4a-history-more">
+            <button className="a4a-toggle" onClick={() => setExpanded(true)}>
+              Show {hidden} earlier attempt{hidden === 1 ? "" : "s"}
+            </button>
+          </li>
+        )}
+        {shown.map((a, i) => (
+          <li key={a.msg.key} className={`a4a-attempt ${a.current ? "current" : ""}`}>
+            <div className="a4a-attempt-head">
+              <span className="a4a-attempt-n">{hidden + i + 1}</span>
+              <Verdict m={a.msg} />
+              {a.current && <span className="a4a-chip">this message</span>}
+              <span className="a4a-mono" style={{ marginLeft: "auto", color: "var(--ink-3)" }}>
+                {a.msg.source === "db" ? `#${a.msg.rawId}` : `cycle ${a.msg.cycle}`}
+              </span>
+            </div>
+            <p className="a4a-attempt-text">{a.msg.text}</p>
+            <div className="a4a-attempt-calls">
+              {a.calls.map((c) => <CallItem key={c.id} call={c} />)}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }

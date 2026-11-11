@@ -6,8 +6,10 @@
 # The generated snapshot is derived from the database, so it is not committed
 # either. Rebuild it with `npm run snapshot`.
 public/admin/data/snapshot.json
-# and the copy mounted into the container
+public/admin/data/llm_logs.json
+# and the copies mounted into the container
 /snapshot.json
+/data/
 
 node_modules/
 build/

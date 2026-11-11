@@ -243,6 +243,65 @@
   .a4a-main { padding: 16px; }
 }
 
+/* ---------------------------------------------------------- llm logs */
+.a4a-filters label.a4a-check { flex-direction: row; align-items: center; gap: 6px; align-self: flex-end; padding-bottom: 7px; }
+
+.a4a-stage {
+  display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px;
+  border-radius: 4px; white-space: nowrap; background: var(--plane); color: var(--ink-2);
+  border: 1px solid var(--hairline);
+}
+.a4a-stage-generate { background: #e9f1fc; color: #1d5ea8; border-color: #cfe0f6; }
+.a4a-stage-judge { background: #f1ecfa; color: #5b3c99; border-color: #e0d6f3; }
+.a4a-stage-feedback { background: #fff4df; color: #8a5a00; border-color: #f4e1b6; }
+
+.a4a-llm-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.a4a-llm-stat {
+  display: flex; align-items: center; gap: 8px; padding: 7px 11px;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; font-size: 12px;
+}
+.a4a-llm-stat b { font-variant-numeric: tabular-nums; }
+.a4a-llm-stat span:last-child { color: var(--ink-3); font-size: 11px; }
+.a4a-llm-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--ink-2); }
+
+/* one call: summary line, then the full record */
+.a4a-call { border: 1px solid var(--grid); border-radius: 6px; background: var(--raised); }
+.a4a-call + .a4a-call { margin-top: 6px; }
+.a4a-call > summary { cursor: pointer; padding: 6px 9px; list-style: none; }
+.a4a-call > summary::-webkit-details-marker { display: none; }
+.a4a-call > summary::before { content: "▸"; color: var(--ink-3); font-size: 10px; margin-right: 6px; display: inline-block; transition: transform 0.12s; }
+.a4a-call[open] > summary::before { transform: rotate(90deg); }
+.a4a-call > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.a4a-call-line { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.a4a-call-meta { color: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.a4a-call-body { padding: 4px 10px 10px; border-top: 1px solid var(--grid); }
+.a4a-call-reason { font-size: 12.5px; color: var(--ink-2); margin: 8px 0; }
+.a4a-call-empty { font-size: 12px; color: var(--ink-3); margin: 6px 0; }
+.a4a-call-block { margin-top: 8px; }
+.a4a-call-block > summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
+.a4a-pre {
+  white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; padding: 9px 11px;
+  background: var(--plane); border-radius: 6px; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto;
+}
+.a4a-call-error { background: #fbecec; color: #8e2020; }
+.a4a-call-dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 11.5px; margin: 10px 0 0; }
+.a4a-call-dl dt { color: var(--ink-3); }
+.a4a-call-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* generation history: attempts in order, the current one highlighted */
+.a4a-history { list-style: none; margin: 0 0 18px; padding: 0; }
+.a4a-history-more { margin-bottom: 8px; }
+.a4a-attempt { position: relative; padding: 0 0 12px 22px; border-left: 2px solid var(--grid); margin-left: 9px; }
+.a4a-attempt:last-child { border-left-color: transparent; }
+.a4a-attempt-head { display: flex; align-items: center; gap: 8px; margin-left: -33px; margin-bottom: 4px; }
+.a4a-attempt-n {
+  width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: var(--raised); border: 2px solid var(--axis); font-size: 10.5px; font-weight: 600; color: var(--ink-2);
+}
+.a4a-attempt.current .a4a-attempt-n { border-color: var(--accent); color: var(--accent); }
+.a4a-attempt-text { font-size: 12.5px; margin: 0 0 6px; color: var(--ink-2); }
+.a4a-attempt.current .a4a-attempt-text { color: var(--ink); }
+
 /* ---------------------------------------------------------- session */
 .a4a-session {
   display: flex;

@@ -10,6 +10,7 @@ import Matrix from "./views/Matrix";
 import Participants from "./views/Participants";
 import Pipeline from "./views/Pipeline";
 import RawData from "./views/RawData";
+import LlmLogs from "./views/LlmLogs";
 
 const VIEWS = [
   { key: "overview", label: "Overview", component: Overview, blurb: "Everything as a whole — volume, acceptance, and reach across all four data dimensions." },
@@ -17,6 +18,7 @@ const VIEWS = [
   { key: "matrix", label: "Matrix", component: Matrix, blurb: "BCT against participant, prompt variant, and model — messages in the cells." },
   { key: "participants", label: "Participants", component: Participants, blurb: "Fitbit steps against the days messages were received, grouped by zip code and shared weather." },
   { key: "pipeline", label: "Pipeline", component: Pipeline, blurb: "For developers: what the agentic loop actually did — cycles, critic gates, and where candidates die." },
+  { key: "llm", label: "LLM logs", component: LlmLogs, ownFilters: true, blurb: "Every call the pipeline made to a language model: what it was asked, what it wrote, how it reasoned, and how long it took." },
   { key: "raw", label: "Raw data", component: RawData, blurb: "The flat table behind every other view. Sort it, filter it, export it." },
 ];
 
@@ -38,6 +40,7 @@ export default function Dashboard() {
       participants: filtered.users.length,
       pipeline: data.runs.length,
       raw: filtered.messages.length,
+      llm: data.llmLogsMeta?.calls ?? null,
     };
   }, [data, filtered]);
 
@@ -114,7 +117,9 @@ export default function Dashboard() {
 
         {status === "ready" && (
           <>
-            <FilterBar data={data} filters={filters} set={set} reset={() => setFilters(EMPTY_FILTERS)} scope={filtered} />
+            {!active.ownFilters && (
+              <FilterBar data={data} filters={filters} set={set} reset={() => setFilters(EMPTY_FILTERS)} scope={filtered} />
+            )}
             <Body data={data} filtered={filtered} filters={filters} set={set} setView={setView} />
           </>
         )}

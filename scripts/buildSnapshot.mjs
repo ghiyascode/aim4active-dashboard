@@ -16,12 +16,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { encryptSnapshot, loadUsers, USERS_FILE } from "./encrypt.mjs";
+import { findLlmLogsDb, isLlmLogsDb, readLlmLogs } from "./llmLogs.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UI = path.resolve(__dirname, "..");
 // Written under public/admin/ so the server rule that protects the dashboard
 // route protects the data with it.
 const OUT = path.join(UI, "public", "admin", "data", "snapshot.json");
+// The LLM log is large, so it is a separate file loaded only when needed.
+const LOGS_OUT = path.join(path.dirname(OUT), "llm_logs.json");
 
 // Every input is optional and overridable, so this runs both inside the full
 // pipeline repo and on its own with just a database:
@@ -29,6 +32,8 @@ const OUT = path.join(UI, "public", "admin", "data", "snapshot.json");
 //   A4A_DB        the database to read
 //   A4A_AGENTIC   directory of agentic run folders
 //   A4A_PROCESSED directory holding selected_bcts.csv and weather_daily.csv
+//   A4A_LLM_LOGS  the LLM call log (llm_logs_*.db); newest one in the project
+//                 root, else in ../AIM4Active
 //   A4A_ROOT      where to look for all of the above when not set individually
 //
 // Anything missing is skipped with a warning rather than failing the build.
@@ -56,7 +61,8 @@ function defaultDb() {
   for (const dir of [ROOT, UI]) {
     if (!fs.existsSync(dir)) continue;
     for (const f of fs.readdirSync(dir)) {
-      if (f.endsWith(".db")) candidates.push(path.join(dir, f));
+      // the LLM call log is a different database, read separately
+      if (f.endsWith(".db") && !isLlmLogsDb(f)) candidates.push(path.join(dir, f));
     }
   }
   candidates.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
@@ -64,6 +70,8 @@ function defaultDb() {
 }
 
 const DB_FILE = process.env.A4A_DB || defaultDb();
+const LLM_LOGS_FILE =
+  process.env.A4A_LLM_LOGS || findLlmLogsDb([ROOT, UI, path.resolve(UI, "..", "AIM4Active")]);
 
 const round = (n, p = 3) => (n == null ? null : +Number(n).toFixed(p));
 
@@ -511,6 +519,13 @@ const agentic = readAgentic();
 const bctCatalog = readBctCatalog();
 const weather = readWeather();
 
+let llm = null;
+if (LLM_LOGS_FILE && fs.existsSync(LLM_LOGS_FILE)) {
+  llm = readLlmLogs(LLM_LOGS_FILE, (db?.messages || []).map((m) => ({ id: m.id, text: m.text })));
+} else {
+  warn("no llm_logs*.db found — the LLM logs view and message history will show mock data only");
+}
+
 const snapshot = {
   generatedAt: new Date().toISOString(),
   // Filled in below, once the user list is known.
@@ -525,6 +540,8 @@ const snapshot = {
   weather,
   db,
   agentic,
+  // Summary only; the calls themselves are in llm_logs.json.
+  llmLogs: llm?.meta || null,
 };
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
@@ -540,11 +557,17 @@ const encrypted = users.length > 0;
 snapshot.protected = encrypted;
 const plaintext = JSON.stringify(snapshot);
 
+const logsText = llm ? JSON.stringify(llm.logs) : null;
 if (encrypted) {
-  fs.writeFileSync(OUT, JSON.stringify(await encryptSnapshot(plaintext, users)));
+  const out = await encryptSnapshot(plaintext, users, logsText ? { "llm_logs.json": logsText } : {});
+  fs.writeFileSync(OUT, JSON.stringify(out.snapshot));
+  if (logsText) fs.writeFileSync(LOGS_OUT, JSON.stringify(out.parts["llm_logs.json"]));
 } else {
   fs.writeFileSync(OUT, plaintext);
+  if (logsText) fs.writeFileSync(LOGS_OUT, logsText);
 }
+// A log left over from an earlier build would not match this snapshot's key.
+if (!logsText && fs.existsSync(LOGS_OUT)) fs.rmSync(LOGS_OUT);
 
 const mb = (fs.statSync(OUT).size / 1024 / 1024).toFixed(2);
 console.log(`
@@ -557,6 +580,7 @@ console.log(`
   agentic candidates  ${agentic.candidates.length}
   bct catalog         ${bctCatalog.length}
   weather days        ${weather.length}
+  llm calls           ${llm ? `${llm.meta.calls} (${llm.meta.linkedMessages} messages linked) from ${llm.meta.source}` : 0}
 
-  -> ${path.relative(ROOT, OUT)}  (${mb} MB)${encrypted ? `  [encrypted for ${users.length} user${users.length === 1 ? "" : "s"}]` : ""}
+  -> ${path.relative(ROOT, OUT)}  (${mb} MB)${encrypted ? `  [encrypted for ${users.length} user${users.length === 1 ? "" : "s"}]` : ""}${llm ? `\n  -> ${path.relative(ROOT, LOGS_OUT)}  (${(fs.statSync(LOGS_OUT).size / 1024 / 1024).toFixed(2)} MB)${encrypted ? "  [encrypted]" : ""}` : ""}
 ${encrypted ? "" : `  ! Not encrypted. Fine locally; add users before deploying (no users found in ${USERS_FILE}):\n      npm run users -- add <username>\n`}`);

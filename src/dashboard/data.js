@@ -14,6 +14,7 @@
 // one search box covers both.
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { makeLlmLogLoader } from "./llmLogs";
 import { BCT_KEY_TO_URI, bctColor } from "./palette";
 import { buildParticipantLayer } from "./participants";
 import {
@@ -310,6 +311,7 @@ function normalize(snap) {
     writers: snap.db?.writers || [],
     weather: snap.weather || [],
     participantsAreMock: participants.isMock,
+    llmLogsMeta: snap.llmLogs || null,
     ...participants, // users, sends, dates, weatherByDate
   };
 }
@@ -330,8 +332,12 @@ export function useDashboardData() {
   const [unlockError, setUnlockError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const open = useCallback((snap) => {
-    setState({ status: "ready", data: normalize(snap), error: null });
+  // rawDataKey is this build's data key (null for an unencrypted snapshot). It
+  // also opens the LLM log, which is fetched only when a view asks for it.
+  const open = useCallback((snap, rawDataKey = null) => {
+    const data = normalize(snap);
+    data.loadLlmLogs = makeLlmLogLoader(snap.llmLogs, rawDataKey);
+    setState({ status: "ready", data, error: null });
   }, []);
 
   useEffect(() => {
@@ -360,7 +366,7 @@ export function useDashboardData() {
             const data = await openWithKey(snap, saved.rawDataKey);
             if (!live) return;
             setUser(saved.username);
-            return open(data);
+            return open(data, saved.rawDataKey);
           } catch {
             forgetSession();
           }
@@ -382,7 +388,7 @@ export function useDashboardData() {
         const name = normalizeUsername(username);
         rememberSession(name, rawDataKey);
         setUser(name);
-        open(snapshot);
+        open(snapshot, rawDataKey);
       } catch (e) {
         setUnlockError(
           e.message === "bad-credentials"

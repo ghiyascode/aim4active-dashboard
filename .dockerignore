@@ -6,6 +6,8 @@ build
 *.db-shm
 *.db-wal
 public/admin/data/snapshot.json
+public/admin/data/llm_logs.json
+data
 snapshot.json
 DEPLOYMENT.md
 npm-debug.log*

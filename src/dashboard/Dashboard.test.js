@@ -13,6 +13,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import fs from "fs";
 import path from "path";
 import Dashboard from "./Dashboard";
+import { buildHistory } from "./llmLogs";
 
 const SNAPSHOT_PATH = path.join(__dirname, "..", "..", "public", "admin", "data", "snapshot.json");
 
@@ -26,15 +27,32 @@ function readableSnapshot() {
 }
 const describeIf = readableSnapshot() ? describe : describe.skip;
 
+// The LLM log sits beside the snapshot. Tests that need it are skipped without it.
+const LOGS_PATH = path.join(path.dirname(SNAPSHOT_PATH), "llm_logs.json");
+function readableLogs() {
+  if (!fs.existsSync(LOGS_PATH)) return null;
+  const parsed = JSON.parse(fs.readFileSync(LOGS_PATH, "utf8"));
+  return parsed.a4aEncrypted ? null : parsed;
+}
+
 describeIf("admin dashboard", () => {
   let snapshot;
+  let logs;
 
   beforeAll(() => {
     snapshot = readableSnapshot();
+    logs = readableLogs();
   });
 
   beforeEach(() => {
-    global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(snapshot) }));
+    global.fetch = jest.fn((url) => {
+      if (String(url).includes("llm_logs.json")) {
+        return Promise.resolve(logs
+          ? { ok: true, json: () => Promise.resolve(logs) }
+          : { ok: false, status: 404, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(snapshot) });
+    });
   });
 
   const renderReady = async () => {
@@ -149,6 +167,45 @@ describeIf("admin dashboard", () => {
     expect(screen.getByText(/Rejected by/)).toBeInTheDocument();
     expect(screen.getByText("Critic gates")).toBeInTheDocument();
   }, 40000);
+
+  // The logs view must account for every call in the log, and open any of them.
+  test("LLM logs view lists every call and opens one", async () => {
+    if (!snapshot.llmLogs || !logs) return;
+    await renderReady();
+    gotoView("LLM logs");
+
+    await waitFor(
+      () => expect(screen.getByRole("heading", { name: `${logs.calls.length.toLocaleString()} LLM calls` })).toBeInTheDocument(),
+      { timeout: 20000 }
+    );
+    // the message filter bar does not apply here
+    expect(screen.queryByLabelText("Search messages")).not.toBeInTheDocument();
+
+    const stage = Object.keys(logs.byStage)[0];
+    fireEvent.change(screen.getByLabelText("Stage"), { target: { value: stage } });
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: `${logs.byStage[stage].toLocaleString()} LLM calls` })).toBeInTheDocument()
+    );
+
+    const rows = screen.getAllByRole("row").filter((r) => r.className.includes("a4a-row-click"));
+    fireEvent.click(rows[0]);
+    await waitFor(() => expect(screen.getByRole("heading", { name: /call #\d+/ })).toBeInTheDocument());
+  }, 60000);
+
+  // A logged message shows real calls; nothing is marked mock.
+  test("a message shows its generation history", async () => {
+    await renderReady();
+    gotoView("Messages");
+    const rows = screen.getAllByRole("row").filter((r) => r.className.includes("a4a-row-click"));
+    fireEvent.click(rows[0]);
+
+    await waitFor(() => expect(screen.getByText("this message")).toBeInTheDocument(), { timeout: 20000 });
+    expect(screen.getByText("Generation history")).toBeInTheDocument();
+    expect(screen.getAllByText("Generate").length).toBeGreaterThan(0);
+    if (logs && Object.keys(logs.messages).length === snapshot.db.messages.length) {
+      expect(screen.queryByText(/Mock history|Partly mock/)).not.toBeInTheDocument();
+    }
+  }, 60000);
 
   test("BCT filter scopes to a single technique", async () => {
     await renderReady();
@@ -332,4 +389,52 @@ describeIf("admin dashboard", () => {
     expect(screen.getByText(/1-5 · .* messages \(/)).toBeInTheDocument();
     if (judged) expect(screen.getByText(/Quality by technique/)).toBeInTheDocument();
   }, 40000);
+});
+
+// History assembly, on fixed data so it runs without any snapshot.
+describe("generation history", () => {
+  const db = (id, batch, status, text) => ({
+    key: `db:${id}`, source: "db", rawId: id, batchKey: `batch-${batch}`, status, text, gates: null,
+  });
+  const ag = (cycle, status, gates = {}) => ({
+    key: `ag:r#${cycle}`, source: "agentic", runId: "r", cycle, idx: cycle, status,
+    text: `candidate ${cycle}`, gates, model: "gen-model", criticModel: "critic-model",
+  });
+
+  test("a logged database message gets its batch, with real calls in time order", () => {
+    const messages = [db(1, 7, "rejected", "a"), db(2, 7, "accepted", "b"), db(3, 8, "accepted", "c")];
+    const logs = {
+      messages: { 1: 10, 2: 20 },
+      byCandidate: {
+        10: [{ id: 10, stage: "generate" }, { id: 11, stage: "safety", verdict: "fail" }],
+        20: [{ id: 20, stage: "generate" }, { id: 21, stage: "safety", verdict: "pass" }],
+      },
+    };
+    const h = buildHistory(messages[1], messages, logs);
+    expect(h.map((a) => a.msg.rawId)).toEqual([1, 2]);
+    expect(h[1].current).toBe(true);
+    expect(h.every((a) => !a.mock)).toBe(true);
+    expect(h[0].calls.map((c) => c.id)).toEqual([10, 11]);
+  });
+
+  test("without a log, history is mock but keeps the real text and verdicts", () => {
+    const messages = [
+      ag(1, "accepted"),
+      ag(2, "rejected", { safety: { passed: false, reason: "unsafe" }, readability: { passed: false, reason: "grade 11" } }),
+      ag(3, "accepted", { safety: { passed: true }, alignment: { passed: true } }),
+    ];
+    const h = buildHistory(messages[2], messages, null);
+    // the streak starts after the previous accepted candidate
+    expect(h.map((a) => a.msg.cycle)).toEqual([2, 3]);
+    expect(h.every((a) => a.mock)).toBe(true);
+    expect(h.flatMap((a) => a.calls).every((c) => c.mock)).toBe(true);
+
+    const rejected = h[0].calls;
+    expect(rejected[0]).toMatchObject({ stage: "generate", output: "candidate 2" });
+    expect(rejected.find((c) => c.stage === "safety")).toMatchObject({ verdict: "fail", reason: "unsafe" });
+    // a failed metric is shown as the feedback call that follows it
+    expect(rejected.find((c) => c.stage === "feedback")).toMatchObject({ reason: "grade 11" });
+    // nothing numeric is invented for a mock call
+    expect(rejected.every((c) => c.latencyMs == null && c.tokensOut == null)).toBe(true);
+  });
 });

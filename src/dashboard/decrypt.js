@@ -59,6 +59,21 @@ export async function openWithKey(payload, rawDataKey) {
 }
 
 /**
+ * Opens an extra file published beside the snapshot (e.g. the LLM log). It is
+ * encrypted with the same data key and gzipped before encryption.
+ */
+export async function openPart(payload, rawDataKey) {
+  const key = await crypto.subtle.importKey("raw", rawDataKey, "AES-GCM", false, ["decrypt"]);
+  const bytes = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(payload.iv) }, key, fromB64(payload.ciphertext));
+  if (payload.compression !== "gzip") return JSON.parse(new TextDecoder().decode(bytes));
+  if (typeof DecompressionStream === "undefined") {
+    throw new Error("This browser cannot decompress the log. Use a current Chrome, Edge, Firefox or Safari.");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(stream).text());
+}
+
+/**
  * Signs in by decryption. Returns the snapshot and the data key for the
  * session. Throws "bad-credentials" for an unknown user or wrong password;
  * the two are deliberately indistinguishable.

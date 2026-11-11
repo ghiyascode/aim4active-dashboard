@@ -28,7 +28,7 @@ FROM nginx:1.27-alpine
 COPY --from=build /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# The snapshot is mounted here at runtime. Without it the dashboard reports
+# The data folder (snapshot.json, llm_logs.json) is mounted here at runtime. Without it the dashboard reports
 # that the data file is missing rather than failing silently.
 RUN mkdir -p /usr/share/nginx/html/admin/data
 

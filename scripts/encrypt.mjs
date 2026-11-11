@@ -29,6 +29,7 @@
 // context, so the site must be served over HTTPS (localhost is exempt).
 
 import { webcrypto as crypto } from "node:crypto";
+import zlib from "node:zlib";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -129,9 +130,12 @@ export async function createUser(username, password) {
 /**
  * @param plaintext the JSON string to protect
  * @param users     records from users.json
- * @returns an envelope safe to publish
+ * @param parts     optional { name: jsonString } of extra files encrypted with
+ *                  the same data key, e.g. the LLM log. They are gzipped first,
+ *                  because ciphertext does not compress in transit.
+ * @returns { snapshot, parts }: envelopes safe to publish
  */
-export async function encryptSnapshot(plaintext, users) {
+export async function encryptSnapshot(plaintext, users, parts = {}) {
   if (!users.length) throw new Error("No users to encrypt the snapshot for.");
 
   const dataKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
@@ -158,7 +162,25 @@ export async function encryptSnapshot(plaintext, users) {
     })
   );
 
-  return {
+  const encryptedParts = {};
+  for (const [name, text] of Object.entries(parts)) {
+    const partIv = random(IV_BYTES);
+    const partCiphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: partIv },
+      dataKey,
+      zlib.gzipSync(Buffer.from(text, "utf8"), { level: 6 })
+    );
+    encryptedParts[name] = {
+      a4aEncrypted: 2,
+      part: name,
+      compression: "gzip",
+      cipher: "AES-GCM",
+      iv: b64(partIv),
+      ciphertext: b64(partCiphertext),
+    };
+  }
+
+  const snapshot = {
     a4aEncrypted: 2,
     scheme: "per-user",
     kdf: "PBKDF2-SHA256",
@@ -168,4 +190,5 @@ export async function encryptSnapshot(plaintext, users) {
     ciphertext: b64(ciphertext),
     users: access,
   };
+  return { snapshot, parts: encryptedParts };
 }
