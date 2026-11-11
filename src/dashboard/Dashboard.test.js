@@ -16,9 +16,9 @@ import Dashboard from "./Dashboard";
 
 const SNAPSHOT_PATH = path.join(__dirname, "..", "..", "public", "admin", "data", "snapshot.json");
 
-// The data tests need a readable snapshot. A build made with A4A_PASSPHRASE is
+// The data tests need a readable snapshot. A build made with users set up is
 // ciphertext, so they are skipped rather than failing confusingly; rebuild
-// without the passphrase to run them.
+// with A4A_NO_ENCRYPT=1 to run them.
 function readableSnapshot() {
   if (!fs.existsSync(SNAPSHOT_PATH)) return null;
   const parsed = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, "utf8"));
@@ -49,18 +49,18 @@ describeIf("admin dashboard", () => {
     return Number(heading.textContent.replace(/[^0-9]/g, ""));
   };
 
-  // An encrypted snapshot must stop at the passphrase prompt rather than
-  // rendering anything, and a wrong passphrase must not get past it.
-  test("an encrypted snapshot is gated behind the passphrase prompt", async () => {
+  // An encrypted snapshot must stop at the sign-in form rather than rendering
+  // anything.
+  test("an encrypted snapshot is gated behind the sign-in form", async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ a4aEncrypted: 1, kdf: "PBKDF2-SHA256", iterations: 310000, salt: "AAAA", iv: "AAAA", ciphertext: "AAAA" }),
+        json: () => Promise.resolve({ a4aEncrypted: 2, iv: "AAAA", ciphertext: "AAAA", users: [] }),
       })
     );
 
     render(<Dashboard />);
-    await waitFor(() => expect(screen.getByText("Dashboard access")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument());
 
     // nothing from the dashboard itself is on the page
     expect(screen.queryByLabelText("Search messages")).not.toBeInTheDocument();

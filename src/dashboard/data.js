@@ -17,8 +17,8 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { BCT_KEY_TO_URI, bctColor } from "./palette";
 import { buildParticipantLayer } from "./participants";
 import {
-  isEncrypted, isSupported, decryptSnapshot,
-  rememberPassphrase, recallPassphrase, forgetPassphrase,
+  isEncrypted, isLegacy, isSupported, signIn, openWithKey, normalizeUsername,
+  rememberSession, recallSession, forgetSession,
 } from "./decrypt";
 
 export const SNAPSHOT_URL = `${process.env.PUBLIC_URL || ""}/admin/data/snapshot.json`;
@@ -319,18 +319,19 @@ function normalize(snap) {
  * Loads the snapshot, and unlocks it first when it is encrypted.
  *
  * Statuses: loading -> (locked ->) ready | error. "locked" means the file
- * arrived but is ciphertext and needs a passphrase, which the caller collects
- * and passes back through unlock().
+ * arrived but is ciphertext and needs a sign-in; the caller collects the
+ * username and password and passes them back through unlock(). signOut()
+ * returns to "locked" and forgets this tab's session.
  */
 export function useDashboardData() {
   const [state, setState] = useState({ status: "loading", data: null, error: null });
   const [payload, setPayload] = useState(null);
+  const [user, setUser] = useState(null);
   const [unlockError, setUnlockError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const open = useCallback((snap, passphrase) => {
+  const open = useCallback((snap) => {
     setState({ status: "ready", data: normalize(snap), error: null });
-    if (passphrase) rememberPassphrase(passphrase);
   }, []);
 
   useEffect(() => {
@@ -344,15 +345,24 @@ export function useDashboardData() {
       .then(async (snap) => {
         if (!live) return;
         if (!isEncrypted(snap)) return open(snap);
+        if (isLegacy(snap)) {
+          throw new Error(
+            "This snapshot was built with the old shared passphrase. Rebuild it with per-user access (npm run users, then npm run snapshot)."
+          );
+        }
 
         setPayload(snap);
-        // A passphrase from earlier in this tab skips the prompt.
-        const saved = recallPassphrase();
+        // A sign-in from earlier in this tab skips the form, as long as the
+        // snapshot has not been rebuilt since.
+        const saved = recallSession();
         if (saved && isSupported()) {
           try {
-            return open(await decryptSnapshot(snap, saved), saved);
+            const data = await openWithKey(snap, saved.rawDataKey);
+            if (!live) return;
+            setUser(saved.username);
+            return open(data);
           } catch {
-            forgetPassphrase();
+            forgetSession();
           }
         }
         if (live) setState({ status: "locked", data: null, error: null });
@@ -363,17 +373,21 @@ export function useDashboardData() {
   }, [open]);
 
   const unlock = useCallback(
-    async (passphrase) => {
+    async (username, password) => {
       if (!payload) return;
       setBusy(true);
       setUnlockError(null);
       try {
-        open(await decryptSnapshot(payload, passphrase), passphrase);
+        const { snapshot, rawDataKey } = await signIn(payload, username, password);
+        const name = normalizeUsername(username);
+        rememberSession(name, rawDataKey);
+        setUser(name);
+        open(snapshot);
       } catch (e) {
         setUnlockError(
-          e.message === "wrong-passphrase"
-            ? "That passphrase did not work. Check it and try again."
-            : `Could not unlock: ${e.message}`
+          e.message === "bad-credentials"
+            ? "Incorrect username or password."
+            : `Could not sign in: ${e.message}`
         );
       } finally {
         setBusy(false);
@@ -382,7 +396,14 @@ export function useDashboardData() {
     [payload, open]
   );
 
-  return { ...state, unlock, unlockError, unlockBusy: busy };
+  const signOut = useCallback(() => {
+    forgetSession();
+    setUser(null);
+    setUnlockError(null);
+    setState({ status: "locked", data: null, error: null });
+  }, []);
+
+  return { ...state, user, unlock, signOut, unlockError, unlockBusy: busy };
 }
 
 // One filter predicate, shared by every view.

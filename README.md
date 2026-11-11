@@ -71,8 +71,30 @@ shown with the number of messages behind it:
 |---|---|---|
 | `/` | Landing page. No study data. | Public |
 | `/terms`, `/privacy` | Policy pages | Public |
-| `/admin` | The dashboard | Passphrase |
-| `/admin/data/snapshot.json` | The data, encrypted when built with a passphrase | Useless without it |
+| `/admin` | The dashboard | Per-user sign-in |
+| `/admin/data/snapshot.json` | The data, encrypted for every user in `users.json` | Useless without an account |
+
+## Access
+
+Each study team member signs in with their own username and password.
+
+```bash
+npm run users -- add alice        # prompts for a password (12+ characters)
+npm run users -- reset alice      # new password, e.g. if forgotten
+npm run users -- remove alice
+npm run users -- list
+npm run snapshot                  # then redeploy snapshot.json
+```
+
+There is no login server. Accounts live in `users.json` (local, ignored by git),
+which stores a key pair per user with the private key encrypted under their
+password; passwords themselves are never stored. Each `npm run snapshot` encrypts
+the data with a fresh key and locks that key separately for every account, so:
+
+- **Changes take effect on the next snapshot.** Rebuild and redeploy after adding,
+  resetting or removing anyone.
+- **Removing someone** locks them out of that snapshot and all later ones.
+- **A forgotten password** cannot be recovered; `reset` sets a new one.
 
 ## Configuration
 
@@ -84,7 +106,8 @@ The dashboard works from a database alone. These add detail if present:
 | `A4A_AGENTIC` | `msg_gen/agentic` | older folder-based runs |
 | `A4A_PROCESSED` | `msg_gen/data/processed` | overrides the bundled BCT catalogue |
 | `A4A_ROOT` | project root | where the above are looked up |
-| `A4A_PASSPHRASE` | asked for at the prompt | encrypts the published data file |
+| `A4A_USERS` | `users.json` | the accounts the published data file is encrypted for |
+| `A4A_NO_ENCRYPT` | unset | set to write plain JSON even when users exist (local testing) |
 
 `npm run snapshot` opens the database read-only and writes one file. Nothing else
 is modified. `reference/selected_bcts.csv` ships with the repo so technique names
@@ -95,7 +118,8 @@ nothing about participants.
 
 ```
 scripts/buildSnapshot.mjs   snapshot builder (Node, built-in node:sqlite)
-scripts/encrypt.mjs         snapshot encryption
+scripts/encrypt.mjs         per-user snapshot encryption
+scripts/users.mjs           add, reset and remove accounts
 reference/                  BCT catalogue shipped with the repo
 src/
   App.js                    routes
@@ -115,7 +139,8 @@ npm test -- --testPathPattern=dashboard --watchAll=false
 
 Smoke tests render every view against whatever snapshot is present and skip the
 assertions a given snapshot cannot support. They are skipped entirely if no
-snapshot exists, or if the one on disk is encrypted.
+snapshot exists, or if the one on disk is encrypted (rebuild with
+`A4A_NO_ENCRYPT=1` to run them).
 
 ## Data handling
 
@@ -134,8 +159,8 @@ snapshot exists, or if the one on disk is encrypted.
 
 ## Deploying
 
-The dashboard builds to static files and needs no backend. Build it, encrypt the
-snapshot with a passphrase when prompted, and serve the `build/` folder over
+The dashboard builds to static files and needs no backend. Add accounts, build
+the snapshot (it is encrypted for every account), and serve the `build/` folder over
 HTTPS with unknown paths falling back to `index.html`.
 
 Deployment notes for this project's server are kept outside the repository.

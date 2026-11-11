@@ -10,3 +10,4 @@ snapshot.json
 DEPLOYMENT.md
 npm-debug.log*
 .DS_Store
+users.json

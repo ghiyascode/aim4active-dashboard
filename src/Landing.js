@@ -1,6 +1,6 @@
 // Public landing page. Carries no study data of any kind, so it is safe to
 // serve without authentication. The link to /admin is just a link; the data
-// behind it is encrypted and needs the passphrase.
+// behind it is encrypted and needs a study team sign-in.
 //
 // Step and card accents run a blue-to-red ramp through purple. These are
 // decorative only; the dashboard's data colours are separate and unchanged.
@@ -112,11 +112,12 @@ export default function Landing() {
             <h2>Access</h2>
             <p>
               The dashboard holds participant activity and message content, so it is restricted
-              to the study team. The data file is encrypted; the passphrase decrypts it in your
-              browser and is never sent anywhere.
+              to the study team. Each member signs in with their own username and password. The
+              data file is encrypted, and your password unlocks it in your browser; it is never
+              sent anywhere.
             </p>
             <p className="landing-muted">
-              If you need access, ask the study team. The passphrase is shared, not personal.
+              If you need an account, ask the study team administrator.
             </p>
           </div>
           <Link className="landing-cta" to="/admin">Open the dashboard</Link>

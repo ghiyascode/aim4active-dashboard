@@ -12,6 +12,10 @@ public/admin/data/snapshot.json
 node_modules/
 build/
 
+# Who can sign in. Holds no passwords, but it is the access list, so it stays
+# local. Rebuild the snapshot after changing it (npm run users).
+/users.json
+
 # Kept local: deployment notes and server specifics are not for the public repo.
 DEPLOYMENT.md
 

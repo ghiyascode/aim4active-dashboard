@@ -6,6 +6,7 @@
   "homepage": "/",
   "scripts": {
     "snapshot": "node scripts/buildSnapshot.mjs",
+    "users": "node scripts/users.mjs",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test"

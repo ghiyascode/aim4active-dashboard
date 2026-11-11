@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import "./dashboard.css";
 import { useDashboardData, useFiltered, EMPTY_FILTERS, SNAPSHOT_URL } from "./data";
-import Unlock from "./Unlock";
+import SignIn from "./SignIn";
 import Overview from "./views/Overview";
 import Messages from "./views/Messages";
 import Matrix from "./views/Matrix";
@@ -21,7 +21,7 @@ const VIEWS = [
 ];
 
 export default function Dashboard() {
-  const { status, data, error, unlock, unlockError, unlockBusy } = useDashboardData();
+  const { status, data, error, user, unlock, signOut, unlockError, unlockBusy } = useDashboardData();
   const [view, setView] = useState("overview");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
 
@@ -41,12 +41,12 @@ export default function Dashboard() {
     };
   }, [data, filtered]);
 
-  // The passphrase gate stands in front of the whole dashboard, before any
+  // The sign-in form stands in front of the whole dashboard, before any
   // navigation or filter state is worth showing.
   if (status === "locked") {
     return (
       <div className="a4a a4a-locked">
-        <Unlock onSubmit={unlock} error={unlockError} busy={unlockBusy} />
+        <SignIn onSubmit={unlock} error={unlockError} busy={unlockBusy} />
       </div>
     );
   }
@@ -76,6 +76,13 @@ export default function Dashboard() {
       </nav>
 
       <main className="a4a-main">
+        {user && (
+          <div className="a4a-session">
+            Signed in as <b>{user}</b>
+            <button type="button" onClick={signOut}>Sign out</button>
+          </div>
+        )}
+
         <div className="a4a-head">
           <h1>{active.label}</h1>
           <p>{active.blurb}</p>
@@ -98,10 +105,10 @@ export default function Dashboard() {
 
         {status === "ready" && data.unprotected && (
           <div className="a4a-unprotected">
-            <b>This snapshot is not encrypted.</b> It was built without a passphrase, so anyone
+            <b>This snapshot is not encrypted.</b> It was built with no users set up, so anyone
             who can reach <span className="a4a-mono">{SNAPSHOT_URL}</span> can read it. Fine
-            locally; rebuild with <span className="a4a-mono">A4A_PASSPHRASE</span> before putting
-            it on a server.
+            locally; add users with <span className="a4a-mono">npm run users -- add &lt;username&gt;</span> and
+            rebuild before putting it on a server.
           </div>
         )}
 

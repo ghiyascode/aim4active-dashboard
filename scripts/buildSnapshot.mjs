@@ -15,8 +15,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import readline from "node:readline/promises";
-import { encryptSnapshot } from "./encrypt.mjs";
+import { encryptSnapshot, loadUsers, USERS_FILE } from "./encrypt.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UI = path.resolve(__dirname, "..");
@@ -514,7 +513,7 @@ const weather = readWeather();
 
 const snapshot = {
   generatedAt: new Date().toISOString(),
-  // Filled in below, once the passphrase (if any) is known.
+  // Filled in below, once the user list is known.
   protected: false,
   sources: {
     db: db ? path.basename(DB_FILE) : null,
@@ -530,43 +529,19 @@ const snapshot = {
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 
-// A passphrase makes the published file ciphertext; without one it is plain
-// JSON, which is fine locally and never fine on a server.
-//
-// It can come from A4A_PASSPHRASE, or be typed when run interactively. Asking
-// is the default so nobody has to remember the variable name.
-async function resolvePassphrase() {
-  const fromEnv = process.env.A4A_PASSPHRASE;
-  if (fromEnv) return fromEnv;
-  if (process.env.A4A_NO_ENCRYPT) return null;       // explicit opt out
-  if (!process.stdin.isTTY) return null;             // CI, pipes, scripts
-
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  console.log("");
-  try {
-    const answer = await rl.question(
-      "  Encrypt this snapshot? Enter a passphrase, or press Enter to skip: "
-    );
-    return answer.trim() || null;
-  } catch {
-    // Ctrl+C or Ctrl+D at the prompt: treat as "skip" rather than crashing.
-    return null;
-  } finally {
-    rl.close();
-  }
+// The published file is encrypted for every user in users.json (see
+// scripts/users.mjs). With no users it is plain JSON, which is fine locally and
+// never fine on a server. A4A_NO_ENCRYPT forces plain JSON for local testing.
+if (process.env.A4A_PASSPHRASE) {
+  console.warn("\n  ! A4A_PASSPHRASE is no longer used. Access is per user: npm run users -- add <username>");
 }
-
-const passphrase = await resolvePassphrase();
-snapshot.protected = Boolean(passphrase);
+const users = process.env.A4A_NO_ENCRYPT ? [] : loadUsers();
+const encrypted = users.length > 0;
+snapshot.protected = encrypted;
 const plaintext = JSON.stringify(snapshot);
 
-if (passphrase) {
-  if (passphrase.length < 12) {
-    console.error(`\n  ! That passphrase is ${passphrase.length} characters. Use at least 12.`);
-    console.error("    Four unrelated words works well, e.g. plateau-cinnamon-harbor-ninety\n");
-    process.exit(1);
-  }
-  fs.writeFileSync(OUT, JSON.stringify(await encryptSnapshot(plaintext, passphrase)));
+if (encrypted) {
+  fs.writeFileSync(OUT, JSON.stringify(await encryptSnapshot(plaintext, users)));
 } else {
   fs.writeFileSync(OUT, plaintext);
 }
@@ -583,5 +558,5 @@ console.log(`
   bct catalog         ${bctCatalog.length}
   weather days        ${weather.length}
 
-  -> ${path.relative(ROOT, OUT)}  (${mb} MB)${passphrase ? "  [encrypted]" : ""}
-${passphrase ? "" : "  ! Not encrypted. Fine locally; re-run and enter a passphrase before deploying.\n"}`);
+  -> ${path.relative(ROOT, OUT)}  (${mb} MB)${encrypted ? `  [encrypted for ${users.length} user${users.length === 1 ? "" : "s"}]` : ""}
+${encrypted ? "" : `  ! Not encrypted. Fine locally; add users before deploying (no users found in ${USERS_FILE}):\n      npm run users -- add <username>\n`}`);
